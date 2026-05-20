@@ -6,6 +6,7 @@ import {
   ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { PrismaService } from './prisma/prisma.service';
 
 type Player = {
   id: string;
@@ -72,6 +73,8 @@ function shuffleArray(array: number[]) {
   },
 })
 export class GameGateway {
+  constructor(private prisma: PrismaService) {}
+
   @WebSocketServer()
   server!: Server;
 
@@ -92,7 +95,6 @@ export class GameGateway {
 
       if (timeLeft <= 0) {
         clearInterval(timer);
-
         this.timers.delete(room.code);
 
         room.acceptingAnswers = false;
@@ -127,13 +129,10 @@ export class GameGateway {
       currentQuestionIndex: 0,
       started: false,
       acceptingAnswers: false,
-      questionOrder: shuffleArray(
-        questions.map((_, index) => index),
-      ),
+      questionOrder: shuffleArray(questions.map((_, index) => index)),
     };
 
     this.rooms.set(roomCode, room);
-
     client.join(roomCode);
 
     client.emit('room_created', room);
@@ -159,7 +158,6 @@ export class GameGateway {
     };
 
     room.players.push(player);
-
     client.join(data.roomCode);
 
     this.server.to(data.roomCode).emit('player_joined', room);
@@ -182,8 +180,7 @@ export class GameGateway {
     room.started = true;
     room.currentQuestionIndex = 0;
 
-    const question =
-      questions[room.questionOrder[room.currentQuestionIndex]];
+    const question = questions[room.questionOrder[room.currentQuestionIndex]];
 
     this.server.to(room.code).emit('game_started', {
       question,
@@ -211,34 +208,19 @@ export class GameGateway {
       return;
     }
 
-    const question =
-      questions[room.questionOrder[room.currentQuestionIndex]];
-
-    const player = room.players.find(
-      (p) => p.id === client.id,
-    );
+    const question = questions[room.questionOrder[room.currentQuestionIndex]];
+    const player = room.players.find((p) => p.id === client.id);
 
     if (!player) return;
 
-    if (
-      player.answeredQuestions.includes(
-        room.currentQuestionIndex,
-      )
-    ) {
-      client.emit(
-        'error_message',
-        'Već si odgovorio na ovo pitanje.',
-      );
-
+    if (player.answeredQuestions.includes(room.currentQuestionIndex)) {
+      client.emit('error_message', 'Već si odgovorio na ovo pitanje.');
       return;
     }
 
-    player.answeredQuestions.push(
-      room.currentQuestionIndex,
-    );
+    player.answeredQuestions.push(room.currentQuestionIndex);
 
-    const isCorrect =
-      data.answer === question.correctAnswer;
+    const isCorrect = data.answer === question.correctAnswer;
 
     if (isCorrect) {
       player.score += 1000;
@@ -249,13 +231,11 @@ export class GameGateway {
       correctAnswer: question.correctAnswer,
     });
 
-    this.server
-      .to(room.code)
-      .emit('leaderboard_updated', room.players);
+    this.server.to(room.code).emit('leaderboard_updated', room.players);
   }
 
   @SubscribeMessage('next_question')
-  nextQuestion(
+  async nextQuestion(
     @MessageBody() data: { roomCode: string },
     @ConnectedSocket() client: Socket,
   ) {
@@ -264,11 +244,7 @@ export class GameGateway {
     if (!room) return;
 
     if (room.hostId !== client.id) {
-      client.emit(
-        'error_message',
-        'Samo host može prebaciti pitanje.',
-      );
-
+      client.emit('error_message', 'Samo host može prebaciti pitanje.');
       return;
     }
 
@@ -276,17 +252,22 @@ export class GameGateway {
 
     if (oldTimer) {
       clearInterval(oldTimer);
-
       this.timers.delete(room.code);
     }
 
     room.currentQuestionIndex++;
 
-    if (
-      room.currentQuestionIndex >=
-      room.questionOrder.length
-    ) {
+    if (room.currentQuestionIndex >= room.questionOrder.length) {
       room.acceptingAnswers = false;
+
+      for (const player of room.players) {
+        await this.prisma.gameResult.create({
+          data: {
+            nickname: player.nickname,
+            score: player.score,
+          },
+        });
+      }
 
       this.server.to(room.code).emit('game_finished', {
         players: room.players,
@@ -295,8 +276,7 @@ export class GameGateway {
       return;
     }
 
-    const question =
-      questions[room.questionOrder[room.currentQuestionIndex]];
+    const question = questions[room.questionOrder[room.currentQuestionIndex]];
 
     this.server.to(room.code).emit('question_started', {
       question,

@@ -16,7 +16,6 @@ type Room = {
   code: string;
   hostId: string;
   players: Player[];
-  questionOrder: number[];
 };
 
 type Question = {
@@ -142,36 +141,44 @@ export default function Home() {
 
   if (gameFinished) {
     return (
-      <main className="min-h-screen bg-zinc-900 text-white flex items-center justify-center">
-        <div className="w-full max-w-xl rounded-2xl bg-zinc-800 p-8 shadow-xl">
-          <h1 className="mb-6 text-center text-4xl font-bold">Kraj igre</h1>
+      <main className="min-h-screen bg-zinc-900 text-white flex items-center justify-center p-6">
+        <div className="w-full max-w-2xl rounded-2xl bg-zinc-800 p-8 shadow-xl">
+          <h1 className="mb-8 text-center text-5xl font-bold">Game Over</h1>
 
-          <div className="space-y-3">
+          <div className="space-y-4">
             {leaderboard.map((player, index) => (
               <div
                 key={player.id}
-                className="flex justify-between rounded-lg bg-zinc-700 p-3"
+                className="flex items-center justify-between rounded-xl bg-zinc-700 p-4"
               >
-                <span>
-                  {index + 1}. {player.nickname}
-                </span>
-                <span>{player.score} bodova</span>
+                <div className="flex items-center gap-4">
+                  <span className="text-2xl">
+                    {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🎮'}
+                  </span>
+
+                  <div>
+                    <p className="text-xl font-bold">{player.nickname}</p>
+                    <p className="text-sm text-zinc-400">#{index + 1} mjesto</p>
+                  </div>
+                </div>
+
+                <span className="text-2xl font-bold">{player.score}</span>
               </div>
             ))}
-            <button
-  onClick={() => {
-    setQuestion(null);
-    setLeaderboard([]);
-    setGameFinished(false);
-    setQuestionEnded(false);
-    setHasAnswered(false);
-    setAnswerResult(null);
-  }}
-  className="mt-6 w-full rounded-lg bg-blue-600 p-3 font-bold hover:bg-blue-700"
->
-  Nova igra
-</button>
           </div>
+
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-8 w-full rounded-xl bg-blue-600 p-4 text-xl font-bold hover:bg-blue-700"
+          >
+            Igraj ponovno
+          </button>
+          <a
+  href="/leaderboard"
+  className="mt-4 block text-center text-blue-400 hover:underline"
+>
+  Pogledaj globalni leaderboard
+</a>
         </div>
       </main>
     );
@@ -191,9 +198,9 @@ export default function Home() {
             )}
           </div>
 
-         <p className="mb-2 text-center text-sm uppercase tracking-widest text-purple-400">
+          <p className="mb-2 text-center text-sm uppercase tracking-widest text-purple-400">
             {question.category}
-         </p>
+          </p>
 
           <p className="mb-4 text-center text-lg text-zinc-300">
             Pitanje {questionNumber} / {totalQuestions}
@@ -248,18 +255,16 @@ export default function Home() {
                 ))}
               </div>
 
-              
-                <button
-                  onClick={() =>
-                    socket.emit('next_question', {
-                      roomCode: room?.code,
-                    })
-                  }
-                  className="mt-6 w-full rounded-lg bg-purple-600 p-3 font-bold hover:bg-purple-700"
-                >
-                  Next Question
-                </button>
-              
+              <button
+                onClick={() =>
+                  socket.emit('next_question', {
+                    roomCode: room?.code,
+                  })
+                }
+                className="mt-6 w-full rounded-lg bg-purple-600 p-3 font-bold hover:bg-purple-700"
+              >
+                Next Question
+              </button>
             </div>
           )}
         </div>
@@ -278,36 +283,35 @@ export default function Home() {
           </p>
 
           <div className="mb-6 rounded-lg bg-zinc-700 p-3 text-center">
-  Čeka se početak igre...
-</div>
-          
-            <button
-              onClick={() =>
-                socket.emit('start_game', {
-                  roomCode: room.code,
-                })
-              }
-              className="mb-6 w-full rounded-lg bg-purple-600 p-3 font-bold hover:bg-purple-700"
-            >
-              Start Game
-            </button>
-        
+            Čeka se početak igre...
+          </div>
+
+          <button
+            onClick={() =>
+              socket.emit('start_game', {
+                roomCode: room.code,
+              })
+            }
+            className="mb-6 w-full rounded-lg bg-purple-600 p-3 font-bold hover:bg-purple-700"
+          >
+            Start Game
+          </button>
 
           <div className="space-y-3">
             {room.players.map((player) => (
-  <div
-    key={player.id}
-    className="flex items-center justify-between rounded-lg bg-zinc-700 p-3"
-  >
-    <span>{player.nickname}</span>
+              <div
+                key={player.id}
+                className="flex items-center justify-between rounded-lg bg-zinc-700 p-3"
+              >
+                <span>{player.nickname}</span>
 
-    {player.id === room.hostId && (
-      <span className="rounded bg-yellow-500 px-2 py-1 text-xs font-bold text-black">
-        HOST
-      </span>
-    )}
-  </div>
-))}
+                {player.id === room.hostId && (
+                  <span className="rounded bg-yellow-500 px-2 py-1 text-xs font-bold text-black">
+                    HOST
+                  </span>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       </main>
@@ -348,6 +352,13 @@ export default function Home() {
         >
           Pridruži se sobi
         </button>
+
+        <a
+          href="/leaderboard"
+          className="mt-4 block text-center text-sm text-blue-400 hover:underline"
+        >
+          Pogledaj globalni leaderboard
+        </a>
       </div>
     </main>
   );
