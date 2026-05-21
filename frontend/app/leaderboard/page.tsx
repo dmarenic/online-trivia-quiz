@@ -13,7 +13,7 @@ export default function LeaderboardPage() {
   const [results, setResults] = useState<GameResult[]>([]);
 
   useEffect(() => {
-    fetch('http://localhost:3000/leaderboard')
+    fetch('${process.env.NEXT_PUBLIC_API_URL}/leaderboard')
       .then((res) => res.json())
       .then((data) => setResults(data));
   }, []);

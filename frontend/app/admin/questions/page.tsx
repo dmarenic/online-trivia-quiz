@@ -29,7 +29,7 @@ export default function AdminQuestionsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   async function fetchQuestions() {
-    const res = await fetch('http://localhost:3000/questions');
+    const res = await fetch('${process.env.NEXT_PUBLIC_API_URL}/questions');
     const data = await res.json();
     setQuestions(data);
   }
@@ -42,7 +42,7 @@ export default function AdminQuestionsPage() {
     e.preventDefault();
 
     if (editingId) {
-      await fetch(`http://localhost:3000/questions/${editingId}`, {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/questions/${editingId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -50,7 +50,7 @@ export default function AdminQuestionsPage() {
         body: JSON.stringify(form),
       });
     } else {
-      await fetch('http://localhost:3000/questions', {
+      await fetch('${process.env.NEXT_PUBLIC_API_URL}/questions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -81,7 +81,7 @@ export default function AdminQuestionsPage() {
   }
 
   async function deleteQuestion(id: string) {
-    await fetch(`http://localhost:3000/questions/${id}`, {
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/questions/${id}`, {
       method: 'DELETE',
     });
 
