@@ -3,7 +3,11 @@ import { Controller, Get } from '@nestjs/common';
 @Controller()
 export class AppController {
   @Get()
-  getHello(): string {
-    return 'Trivia Backend Running!';
+  getHealth() {
+    return {
+      status: 'ok',
+      message: 'Trivia backend is running',
+      timestamp: new Date().toISOString(),
+    };
   }
 }

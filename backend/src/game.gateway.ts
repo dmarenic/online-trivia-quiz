@@ -15,6 +15,14 @@ type Player = {
   answeredQuestions: number[];
 };
 
+type QuizQuestion = {
+  id: string;
+  category: string;
+  question: string;
+  options: string[];
+  correctAnswer: string;
+};
+
 type Room = {
   code: string;
   hostId: string;
@@ -22,48 +30,14 @@ type Room = {
   currentQuestionIndex: number;
   started: boolean;
   acceptingAnswers: boolean;
-  questionOrder: number[];
+  selectedCategory: string;
+  questionStartTime: number;
+  questions: QuizQuestion[];
 };
 
-const questions = [
-  {
-    category: 'Geografija',
-    question: 'Koji je glavni grad Hrvatske?',
-    options: ['Split', 'Zagreb', 'Rijeka', 'Osijek'],
-    correctAnswer: 'Zagreb',
-  },
-  {
-    category: 'Matematika',
-    question: 'Koliko je 2 + 2?',
-    options: ['3', '4', '5', '6'],
-    correctAnswer: '4',
-  },
-  {
-    category: 'Računarstvo',
-    question: 'Što znači HTML?',
-    options: [
-      'HyperText Markup Language',
-      'HighText Machine Language',
-      'HyperTool Multi Language',
-      'HomeText Markup Language',
-    ],
-    correctAnswer: 'HyperText Markup Language',
-  },
-  {
-    category: 'Računarstvo',
-    question: 'Koji se jezik najčešće koristi za stiliziranje web stranica?',
-    options: ['HTML', 'CSS', 'SQL', 'Python'],
-    correctAnswer: 'CSS',
-  },
-  {
-    category: 'Sport',
-    question: 'Koliko igrača ima nogometna momčad na terenu?',
-    options: ['9', '10', '11', '12'],
-    correctAnswer: '11',
-  },
-];
+const QUESTION_TIME = 15;
 
-function shuffleArray(array: number[]) {
+function shuffleArray<T>(array: T[]) {
   return [...array].sort(() => Math.random() - 0.5);
 }
 
@@ -81,10 +55,47 @@ export class GameGateway {
   private rooms: Map<string, Room> = new Map();
   private timers: Map<string, NodeJS.Timeout> = new Map();
 
+  private calculatePoints(isCorrect: boolean, responseTimeMs: number) {
+    if (!isCorrect) return 0;
+
+    const basePoints = 1000;
+    const speedBonus = Math.max(0, 500 - Math.floor(responseTimeMs / 30));
+
+    return basePoints + speedBonus;
+  }
+
+  private getAnsweredCount(room: Room) {
+    return room.players.filter((player) =>
+      player.answeredQuestions.includes(room.currentQuestionIndex),
+    ).length;
+  }
+
+  private haveAllPlayersAnswered(room: Room) {
+    return this.getAnsweredCount(room) === room.players.length;
+  }
+
+  private endQuestion(room: Room) {
+    const oldTimer = this.timers.get(room.code);
+
+    if (oldTimer) {
+      clearInterval(oldTimer);
+      this.timers.delete(room.code);
+    }
+
+    room.acceptingAnswers = false;
+
+    this.server.to(room.code).emit('question_ended', {
+      players: room.players,
+      answeredCount: this.getAnsweredCount(room),
+      totalPlayers: room.players.length,
+    });
+  }
+
   private startQuestionTimer(room: Room) {
-    let timeLeft = 15;
+    let timeLeft = QUESTION_TIME;
 
     room.acceptingAnswers = true;
+    room.questionStartTime = Date.now();
 
     this.server.to(room.code).emit('timer_updated', timeLeft);
 
@@ -94,18 +105,35 @@ export class GameGateway {
       this.server.to(room.code).emit('timer_updated', timeLeft);
 
       if (timeLeft <= 0) {
-        clearInterval(timer);
-        this.timers.delete(room.code);
-
-        room.acceptingAnswers = false;
-
-        this.server.to(room.code).emit('question_ended', {
-          players: room.players,
-        });
+        this.endQuestion(room);
       }
     }, 1000);
 
     this.timers.set(room.code, timer);
+  }
+
+  private async getQuestionsForCategory(category: string) {
+    const dbQuestions = await this.prisma.question.findMany({
+      where:
+        category === 'All'
+          ? {}
+          : {
+              category,
+            },
+    });
+
+    return dbQuestions.map((question) => ({
+      id: question.id,
+      category: question.category,
+      question: question.question,
+      options: [
+        question.optionA,
+        question.optionB,
+        question.optionC,
+        question.optionD,
+      ],
+      correctAnswer: question.correctAnswer,
+    }));
   }
 
   @SubscribeMessage('create_room')
@@ -129,7 +157,9 @@ export class GameGateway {
       currentQuestionIndex: 0,
       started: false,
       acceptingAnswers: false,
-      questionOrder: shuffleArray(questions.map((_, index) => index)),
+      selectedCategory: 'All',
+      questionStartTime: 0,
+      questions: [],
     };
 
     this.rooms.set(roomCode, room);
@@ -146,7 +176,7 @@ export class GameGateway {
     const room = this.rooms.get(data.roomCode);
 
     if (!room) {
-      client.emit('error_message', 'Room not found');
+      client.emit('error_message', 'Soba nije pronađena.');
       return;
     }
 
@@ -163,8 +193,53 @@ export class GameGateway {
     this.server.to(data.roomCode).emit('player_joined', room);
   }
 
+  @SubscribeMessage('set_category')
+  setCategory(
+    @MessageBody() data: { roomCode: string; category: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const room = this.rooms.get(data.roomCode);
+
+    if (!room) return;
+
+    if (room.hostId !== client.id) {
+      client.emit('error_message', 'Samo host može odabrati kategoriju.');
+      return;
+    }
+
+    if (room.started) {
+      client.emit(
+        'error_message',
+        'Kategoriju nije moguće mijenjati nakon početka igre.',
+      );
+      return;
+    }
+
+    room.selectedCategory = data.category;
+
+    this.server.to(room.code).emit('category_updated', {
+      category: room.selectedCategory,
+    });
+  }
+
+  @SubscribeMessage('send_message')
+  sendMessage(
+    @MessageBody()
+    data: {
+      roomCode: string;
+      nickname: string;
+      message: string;
+    },
+  ) {
+    this.server.to(data.roomCode).emit('new_message', {
+      nickname: data.nickname,
+      message: data.message,
+      createdAt: new Date().toISOString(),
+    });
+  }
+
   @SubscribeMessage('start_game')
-  startGame(
+  async startGame(
     @MessageBody() data: { roomCode: string },
     @ConnectedSocket() client: Socket,
   ) {
@@ -177,14 +252,31 @@ export class GameGateway {
       return;
     }
 
+    const questions = await this.getQuestionsForCategory(room.selectedCategory);
+
+    if (questions.length === 0) {
+      client.emit('error_message', 'Nema pitanja za odabranu kategoriju.');
+      return;
+    }
+
     room.started = true;
     room.currentQuestionIndex = 0;
+    room.questions = shuffleArray(questions);
 
-    const question = questions[room.questionOrder[room.currentQuestionIndex]];
+    room.players = room.players.map((player) => ({
+      ...player,
+      score: 0,
+      answeredQuestions: [],
+    }));
+
+    const question = room.questions[room.currentQuestionIndex];
 
     this.server.to(room.code).emit('game_started', {
       question,
       questionNumber: room.currentQuestionIndex + 1,
+      totalQuestions: room.questions.length,
+      answeredCount: 0,
+      totalPlayers: room.players.length,
     });
 
     this.startQuestionTimer(room);
@@ -208,10 +300,10 @@ export class GameGateway {
       return;
     }
 
-    const question = questions[room.questionOrder[room.currentQuestionIndex]];
+    const question = room.questions[room.currentQuestionIndex];
     const player = room.players.find((p) => p.id === client.id);
 
-    if (!player) return;
+    if (!question || !player) return;
 
     if (player.answeredQuestions.includes(room.currentQuestionIndex)) {
       client.emit('error_message', 'Već si odgovorio na ovo pitanje.');
@@ -220,18 +312,31 @@ export class GameGateway {
 
     player.answeredQuestions.push(room.currentQuestionIndex);
 
+    const responseTimeMs = Date.now() - room.questionStartTime;
     const isCorrect = data.answer === question.correctAnswer;
+    const pointsEarned = this.calculatePoints(isCorrect, responseTimeMs);
 
-    if (isCorrect) {
-      player.score += 1000;
-    }
+    player.score += pointsEarned;
+
+    const answeredCount = this.getAnsweredCount(room);
 
     client.emit('answer_result', {
       isCorrect,
       correctAnswer: question.correctAnswer,
+      pointsEarned,
+      players: room.players,
+      answeredCount,
+      totalPlayers: room.players.length,
     });
 
-    this.server.to(room.code).emit('leaderboard_updated', room.players);
+    this.server.to(room.code).emit('answer_status_updated', {
+      answeredCount,
+      totalPlayers: room.players.length,
+    });
+
+    if (this.haveAllPlayersAnswered(room)) {
+      this.endQuestion(room);
+    }
   }
 
   @SubscribeMessage('next_question')
@@ -248,6 +353,16 @@ export class GameGateway {
       return;
     }
 
+    if (room.acceptingAnswers && !this.haveAllPlayersAnswered(room)) {
+      client.emit(
+        'error_message',
+        `Ne možeš još dalje. Odgovorilo je ${this.getAnsweredCount(room)} / ${
+          room.players.length
+        } igrača.`,
+      );
+      return;
+    }
+
     const oldTimer = this.timers.get(room.code);
 
     if (oldTimer) {
@@ -257,7 +372,7 @@ export class GameGateway {
 
     room.currentQuestionIndex++;
 
-    if (room.currentQuestionIndex >= room.questionOrder.length) {
+    if (room.currentQuestionIndex >= room.questions.length) {
       room.acceptingAnswers = false;
 
       for (const player of room.players) {
@@ -276,11 +391,14 @@ export class GameGateway {
       return;
     }
 
-    const question = questions[room.questionOrder[room.currentQuestionIndex]];
+    const question = room.questions[room.currentQuestionIndex];
 
     this.server.to(room.code).emit('question_started', {
       question,
       questionNumber: room.currentQuestionIndex + 1,
+      totalQuestions: room.questions.length,
+      answeredCount: 0,
+      totalPlayers: room.players.length,
     });
 
     this.startQuestionTimer(room);

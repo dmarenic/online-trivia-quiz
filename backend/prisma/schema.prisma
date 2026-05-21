@@ -19,3 +19,15 @@ model GameResult {
   score     Int
   createdAt DateTime @default(now())
 }
+
+model Question {
+  id            String   @id @default(cuid())
+  category      String
+  question      String
+  optionA       String
+  optionB       String
+  optionC       String
+  optionD       String
+  correctAnswer String
+  createdAt     DateTime @default(now())
+}
