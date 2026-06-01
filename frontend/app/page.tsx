@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
 const socket = io(API_URL);
 
 type Player = {
@@ -12,13 +11,17 @@ type Player = {
   nickname: string;
   score: number;
   answeredQuestions?: number[];
+  isReady?: boolean;
 };
 
 type Room = {
   code: string;
   hostId: string;
+  started?: boolean;
   players: Player[];
   selectedCategory?: string;
+  questionCount?: number;
+  timePerQuestion?: number;
 };
 
 type Question = {
@@ -32,6 +35,14 @@ type ChatMessage = {
   nickname: string;
   message: string;
   createdAt: string;
+};
+
+type User = {
+  id: string;
+  username: string;
+  email: string;
+  role?: string;
+  avatar?: string;
 };
 
 export default function Home() {
@@ -50,6 +61,12 @@ export default function Home() {
   const [totalPlayers, setTotalPlayers] = useState(0);
   const [errorMessage, setErrorMessage] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [user, setUser] = useState<User | null>(null);
+  const [friends, setFriends] = useState<any[]>([]);
+  const [roomInvites, setRoomInvites] = useState<any[]>([]);
+  const [timePerQuestion, setTimePerQuestion] = useState(15);
+  const [questionCount, setQuestionCount] = useState(10);
+
   const [answerResult, setAnswerResult] = useState<{
     isCorrect: boolean;
     correctAnswer: string;
@@ -59,12 +76,55 @@ export default function Home() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
 
+  const shouldShowLeaderboard = hasAnswered || questionEnded;
+  const isHost = room?.hostId === socket.id;
+
   useEffect(() => {
+    socket.on('room_invite_received', (invite) => {
+  setRoomInvites((prev) => [invite, ...prev]);
+});
+    const params = new URLSearchParams(window.location.search);
+    const roomFromUrl = params.get('room');
+
+    if (roomFromUrl) {
+      setRoomCode(roomFromUrl);
+    }
+
+    const savedUser = localStorage.getItem('user');
+
+    if (savedUser) {
+      const parsedUser = JSON.parse(savedUser);
+      setUser(parsedUser);
+      setNickname(parsedUser.username);
+
+      socket.emit('join_user_channel', {
+  userId: parsedUser.id,
+});
+
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/${parsedUser.id}/friends`)
+        .then((res) => res.json())
+        .then((data) => setFriends(data))
+        .catch(() => setFriends([]));
+
+      fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/users/${parsedUser.id}/room-invites`,
+      )
+        .then((res) => res.json())
+        .then((data) => setRoomInvites(data))
+        .catch(() => setRoomInvites([]));
+    }
+
     socket.on('room_created', (roomData: Room) => {
       setRoom(roomData);
       setSelectedCategory(roomData.selectedCategory ?? 'All');
       setTotalPlayers(roomData.players.length);
+      setQuestionCount(roomData.questionCount ?? 10);
+      setTimePerQuestion(roomData.timePerQuestion ?? 15);
     });
+
+    socket.on('room_updated', (roomData: Room) => {
+  setRoom(roomData);
+});
 
     socket.on('player_joined', (roomData: Room) => {
       setRoom(roomData);
@@ -88,12 +148,14 @@ export default function Home() {
         totalQuestions: number;
         answeredCount: number;
         totalPlayers: number;
+        timePerQuestion?: number;
       }) => {
         setQuestion(data.question);
         setQuestionNumber(data.questionNumber);
         setTotalQuestions(data.totalQuestions);
         setAnsweredCount(data.answeredCount);
         setTotalPlayers(data.totalPlayers);
+        setTimeLeft(data.timePerQuestion ?? timePerQuestion);
         setLeaderboard([]);
         setGameFinished(false);
         setQuestionEnded(false);
@@ -111,12 +173,14 @@ export default function Home() {
         totalQuestions: number;
         answeredCount: number;
         totalPlayers: number;
+        timePerQuestion?: number;
       }) => {
         setQuestion(data.question);
         setQuestionNumber(data.questionNumber);
         setTotalQuestions(data.totalQuestions);
         setAnsweredCount(data.answeredCount);
         setTotalPlayers(data.totalPlayers);
+        setTimeLeft(data.timePerQuestion ?? timePerQuestion);
         setLeaderboard([]);
         setQuestionEnded(false);
         setHasAnswered(false);
@@ -200,12 +264,26 @@ export default function Home() {
       socket.off('question_ended');
       socket.off('game_finished');
       socket.off('error_message');
+      socket.off('room_invite_received');
+      socket.off('room_updated');
     };
-  }, []);
+  }, [timePerQuestion]);
+
+  function logout() {
+    localStorage.removeItem('user');
+    setUser(null);
+    setNickname('');
+  }
 
   function createRoom() {
     if (!nickname) return;
-    socket.emit('create_room', { nickname });
+
+    socket.emit('create_room', {
+      nickname,
+      userId: user?.id,
+      questionCount,
+      timePerQuestion,
+    });
   }
 
   function joinRoom() {
@@ -214,6 +292,7 @@ export default function Home() {
     socket.emit('join_room', {
       roomCode,
       nickname,
+      userId: user?.id,
     });
   }
 
@@ -227,6 +306,14 @@ export default function Home() {
       category,
     });
   }
+
+  function toggleReady() {
+  if (!room) return;
+
+  socket.emit('toggle_ready', {
+    roomCode: room.code,
+  });
+}
 
   function submitAnswer(answer: string) {
     if (!room || hasAnswered || questionEnded) return;
@@ -251,11 +338,72 @@ export default function Home() {
     setChatInput('');
   }
 
-  const shouldShowLeaderboard = hasAnswered || questionEnded;
+  async function declineRoomInvite(inviteId: string) {
+  await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/room-invites/${inviteId}`, {
+    method: 'DELETE',
+  });
+
+  setRoomInvites((prev) => prev.filter((invite) => invite.id !== inviteId));
+}
+
+  function inviteFriend(friendId: string) {
+  if (!user || !room) return;
+
+  socket.emit('send_room_invite', {
+    fromUserId: user.id,
+    fromUsername: user.username,
+    toUserId: friendId,
+    roomCode: room.code,
+  });
+
+  alert('Pozivnica poslana!');
+}
+
+  if (user?.role === 'ADMIN') {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-zinc-900 text-white">
+        <div className="w-full max-w-md rounded-2xl bg-zinc-800 p-8 text-center shadow-xl">
+          <h1 className="mb-4 text-4xl font-bold">⚙️ Admin Panel</h1>
+
+          <p className="mb-8 text-zinc-400">
+            Prijavljen kao admin: {user.username}
+          </p>
+
+          <a
+            href="/admin/questions"
+            className="mb-4 block w-full rounded-lg bg-purple-600 p-4 font-bold hover:bg-purple-700"
+          >
+            Upravljanje pitanjima
+          </a>
+
+          <a
+            href="/profile"
+            className="mb-4 block text-blue-400 hover:underline"
+          >
+            Moj profil
+          </a>
+
+          <a
+            href="/friends"
+            className="mb-4 block text-blue-400 hover:underline"
+          >
+            Friends
+          </a>
+
+          <button
+            onClick={logout}
+            className="w-full rounded-lg bg-red-600 p-4 font-bold hover:bg-red-700"
+          >
+            Odjava
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   if (gameFinished) {
     return (
-      <main className="min-h-screen bg-zinc-900 text-white flex items-center justify-center p-6">
+      <main className="flex min-h-screen items-center justify-center bg-zinc-900 p-6 text-white">
         <div className="w-full max-w-2xl rounded-2xl bg-zinc-800 p-8 shadow-xl">
           <h1 className="mb-8 text-center text-5xl font-bold">Game Over</h1>
 
@@ -267,7 +415,13 @@ export default function Home() {
               >
                 <div className="flex items-center gap-4">
                   <span className="text-2xl">
-                    {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🎮'}
+                    {index === 0
+                      ? '🥇'
+                      : index === 1
+                        ? '🥈'
+                        : index === 2
+                          ? '🥉'
+                          : '🎮'}
                   </span>
 
                   <img
@@ -307,7 +461,7 @@ export default function Home() {
 
   if (question) {
     return (
-      <main className="min-h-screen bg-zinc-900 text-white flex items-center justify-center">
+      <main className="flex min-h-screen items-center justify-center bg-zinc-900 text-white">
         <div className="w-full max-w-xl rounded-2xl bg-zinc-800 p-8 shadow-xl">
           {errorMessage && (
             <div className="mb-6 rounded-lg bg-yellow-500 p-3 text-center font-bold text-black">
@@ -372,39 +526,65 @@ export default function Home() {
 
           {shouldShowLeaderboard && leaderboard.length > 0 && (
             <div className="mt-8 rounded-xl bg-zinc-700 p-4">
-              <h2 className="mb-4 text-2xl font-bold">Leaderboard</h2>
+              <h2 className="mb-2 text-center text-3xl font-bold">
+                🏆 Room Leaderboard
+              </h2>
+
+              <p className="mb-6 text-center text-sm text-zinc-400">
+                Trenutni poredak igrača u sobi
+              </p>
 
               <div className="space-y-2">
-                {leaderboard.map((player) => (
+                {leaderboard.map((player, index) => (
                   <div
                     key={player.id}
-                    className="flex justify-between rounded-lg bg-zinc-800 p-3"
+                    className="flex items-center justify-between rounded-xl bg-zinc-800 p-4"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-4">
+                      <span className="text-2xl">
+                        {index === 0
+                          ? '🥇'
+                          : index === 1
+                            ? '🥈'
+                            : index === 2
+                              ? '🥉'
+                              : '🎮'}
+                      </span>
+
                       <img
                         src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${player.nickname}`}
-                        className="h-10 w-10 rounded-full"
+                        className="h-12 w-12 rounded-full"
                         alt=""
                       />
 
-                      <span>{player.nickname}</span>
+                      <div>
+                        <p className="font-bold">{player.nickname}</p>
+                        <p className="text-sm text-zinc-400">
+                          #{index + 1} mjesto
+                        </p>
+                      </div>
                     </div>
 
-                    <span>{player.score} bodova</span>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold">{player.score}</p>
+                      <p className="text-xs text-zinc-400">bodova</p>
+                    </div>
                   </div>
                 ))}
               </div>
 
-              <button
-                onClick={() =>
-                  socket.emit('next_question', {
-                    roomCode: room?.code,
-                  })
-                }
-                className="mt-6 w-full rounded-lg bg-purple-600 p-3 font-bold hover:bg-purple-700"
-              >
-                Next Question
-              </button>
+              {isHost && (
+                <button
+                  onClick={() =>
+                    socket.emit('next_question', {
+                      roomCode: room?.code,
+                    })
+                  }
+                  className="mt-6 w-full rounded-lg bg-purple-600 p-3 font-bold hover:bg-purple-700"
+                >
+                  ➡️ Sljedeće pitanje
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -414,7 +594,7 @@ export default function Home() {
 
   if (room) {
     return (
-      <main className="min-h-screen bg-zinc-900 text-white flex items-center justify-center">
+      <main className="flex min-h-screen items-center justify-center bg-zinc-900 text-white">
         <div className="w-full max-w-md rounded-2xl bg-zinc-800 p-8 shadow-xl">
           {errorMessage && (
             <div className="mb-6 rounded-lg bg-yellow-500 p-3 text-center font-bold text-black">
@@ -428,13 +608,63 @@ export default function Home() {
             Room Code: <b>{room.code}</b>
           </p>
 
-          <div className="mb-6 rounded-lg bg-zinc-700 p-3 text-center">
-            Odabrana kategorija: <b>{selectedCategory}</b>
+          <div className="mb-6 rounded-lg bg-zinc-700 p-4 text-center">
+            <p className="font-bold">Postavke sobe</p>
+            <p>Broj pitanja: {questionCount}</p>
+            <p>Vrijeme po pitanju: {timePerQuestion}s</p>
+            <p>Kategorija: {selectedCategory}</p>
           </div>
 
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(
+                `${window.location.origin}/?room=${room.code}`,
+              );
+
+              alert('Invite link kopiran!');
+            }}
+            className="mb-6 w-full rounded-lg bg-blue-600 p-3 font-bold hover:bg-blue-700"
+          >
+            👥 Kopiraj invite link
+          </button>
+
+          <p className="mb-6 text-center text-sm text-zinc-400">
+            Pošalji prijatelju link za automatski ulazak u sobu
+          </p>
+
+          {isHost && friends.length > 0 && (
+            <div className="mb-6 rounded-xl bg-zinc-700 p-4">
+              <h2 className="mb-4 text-xl font-bold">👥 Pozovi prijatelje</h2>
+
+              <div className="space-y-3">
+                {friends.map((friend) => {
+  const realFriend =
+    friend.senderId === user?.id ? friend.receiver : friend.sender;
+
+  return (
+    <div
+      key={friend.id}
+      className="flex items-center justify-between rounded-lg bg-zinc-800 p-3"
+    >
+      <span>{realFriend.username}</span>
+
+      <button
+        onClick={() => inviteFriend(realFriend.id)}
+        className="rounded-lg bg-blue-600 px-4 py-2 font-bold hover:bg-blue-700"
+      >
+        Pozovi
+      </button>
+    </div>
+  );
+})}
+              </div>
+            </div>
+          )}
+
           <select
-            className="mb-4 w-full rounded-lg bg-zinc-700 p-3 text-white"
+            className="mb-4 w-full rounded-lg bg-zinc-700 p-3 text-white disabled:bg-zinc-600"
             value={selectedCategory}
+            disabled={!isHost || !!question}
             onChange={(e) => changeCategory(e.target.value)}
           >
             <option value="All">Sve kategorije</option>
@@ -444,16 +674,55 @@ export default function Home() {
             <option value="Sport">Sport</option>
           </select>
 
-          <button
-            onClick={() =>
-              socket.emit('start_game', {
-                roomCode: room.code,
-              })
-            }
-            className="mb-6 w-full rounded-lg bg-purple-600 p-3 font-bold hover:bg-purple-700"
-          >
-            Start Game
-          </button>
+          {isHost && (
+            <>
+              <label className="block">
+                Broj pitanja
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={questionCount}
+                  onChange={(e) => setQuestionCount(Number(e.target.value))}
+                  className="mt-2 w-full rounded-lg p-3 text-black"
+                />
+              </label>
+
+              <label className="mt-4 block">
+                Vrijeme po pitanju
+                <input
+                  type="number"
+                  min={5}
+                  max={60}
+                  value={timePerQuestion}
+                  onChange={(e) => setTimePerQuestion(Number(e.target.value))}
+                  className="mt-2 w-full rounded-lg p-3 text-black"
+                />
+              </label>
+
+              {isHost ? (
+  <button
+    onClick={() =>
+      socket.emit('start_game', {
+        roomCode: room.code,
+        questionCount,
+        timePerQuestion,
+      })
+    }
+    className="mb-6 w-full rounded-lg bg-purple-600 p-3 font-bold hover:bg-purple-700"
+  >
+    Start Game
+  </button>
+) : (
+  <button
+    onClick={toggleReady}
+    className="mb-6 w-full rounded-lg bg-green-600 p-3 font-bold hover:bg-green-700"
+  >
+    Spreman / Nisam spreman
+  </button>
+)}
+            </>
+          )}
 
           <div className="space-y-3">
             {room.players.map((player) => (
@@ -476,9 +745,38 @@ export default function Home() {
                     HOST
                   </span>
                 )}
+
+                {player.id !== room.hostId && (
+  <span
+    className={`rounded px-2 py-1 text-xs font-bold ${
+      player.isReady ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+    }`}
+  >
+    {player.isReady ? 'READY' : 'NOT READY'}
+  </span>
+)}
+
+                {player.id !== room.hostId && (
+  <span
+    className={`rounded px-2 py-1 text-xs font-bold ${
+      player.isReady ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+    }`}
+  >
+    {player.isReady ? 'READY' : 'NOT READY'}
+  </span>
+)}
               </div>
             ))}
           </div>
+
+{!isHost && (
+  <button
+    onClick={toggleReady}
+    className="mt-6 w-full rounded-lg bg-green-600 p-3 font-bold hover:bg-green-700"
+  >
+    Spreman / Nisam spreman
+  </button>
+)}          
 
           <div className="mt-6 rounded-xl bg-zinc-700 p-4">
             <h2 className="mb-3 text-xl font-bold">Lobby Chat</h2>
@@ -488,7 +786,10 @@ export default function Home() {
                 <p className="text-sm text-zinc-400">Još nema poruka.</p>
               ) : (
                 chatMessages.map((chat, index) => (
-                  <div key={index} className="rounded-lg bg-zinc-800 p-2 text-sm">
+                  <div
+                    key={index}
+                    className="rounded-lg bg-zinc-800 p-2 text-sm"
+                  >
                     <b>{chat.nickname}:</b> {chat.message}
                   </div>
                 ))
@@ -517,11 +818,81 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-zinc-900 text-white">
+    <main className="flex min-h-screen items-center justify-center bg-zinc-900 text-white">
       <div className="w-full max-w-md rounded-2xl bg-zinc-800 p-8 shadow-xl">
+        <div className="mb-6 flex items-center justify-between">
+          {user ? (
+            <>
+              <a
+                href="/profile"
+                className="font-bold text-blue-400 hover:underline"
+              >
+                👤 {user.username}
+              </a>
+
+              <a href="/friends" className="text-blue-400 hover:underline">
+                Friends
+              </a>
+
+              <button
+                onClick={logout}
+                className="rounded-lg bg-red-600 px-3 py-2 text-sm font-bold hover:bg-red-700"
+              >
+                Odjava
+              </button>
+            </>
+          ) : (
+            <div className="flex w-full justify-center gap-4">
+              <a href="/login" className="text-blue-400 hover:underline">
+                Prijava
+              </a>
+
+              <a href="/register" className="text-blue-400 hover:underline">
+                Registracija
+              </a>
+            </div>
+          )}
+        </div>
+
         <h1 className="mb-6 text-center text-4xl font-bold">
           Online Trivia Quiz
         </h1>
+
+        {roomInvites.length > 0 && (
+          <div className="mb-6 rounded-xl bg-zinc-700 p-4">
+            <h2 className="mb-4 text-xl font-bold">📨 Pozivnice u sobe</h2>
+
+            <div className="space-y-3">
+              {roomInvites.map((invite) => (
+                <div key={invite.id} className="rounded-lg bg-zinc-800 p-4">
+                  <p className="mb-3">
+                    <strong>{invite.fromUser.username}</strong> te poziva u
+                    sobu <strong>{invite.roomCode}</strong>
+                  </p>
+
+                  <div className="flex gap-2">
+  <button
+  onClick={async () => {
+    await declineRoomInvite(invite.id);
+    window.location.href = `/?room=${invite.roomCode}`;
+  }}
+  className="block w-full rounded-lg bg-blue-600 p-3 text-center font-bold hover:bg-blue-700"
+>
+  Pridruži se
+</button>
+
+  <button
+    onClick={() => declineRoomInvite(invite.id)}
+    className="rounded-lg bg-red-600 px-4 font-bold hover:bg-red-700"
+  >
+    ✕
+  </button>
+</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <input
           className="mb-4 w-full rounded-lg bg-white p-3 text-black"
@@ -537,9 +908,15 @@ export default function Home() {
           Kreiraj sobu
         </button>
 
+        {roomCode && (
+          <div className="mb-4 rounded-lg bg-purple-600 p-3 text-center font-bold">
+            🎮 Pozvan si u sobu: {roomCode}
+          </div>
+        )}
+
         <input
           className="mb-4 w-full rounded-lg bg-white p-3 text-black"
-          placeholder="Unesi kod sobe"
+          placeholder="Unesi kod sobe ili koristi invite link"
           value={roomCode}
           onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
         />
@@ -551,11 +928,22 @@ export default function Home() {
           Pridruži se sobi
         </button>
 
+        <p className="mt-3 text-center text-sm text-zinc-400">
+          Ako si otvorio invite link, kod sobe je već upisan.
+        </p>
+
         <a
-          href="/leaderboard"
+          href="/daily"
+          className="mt-4 block rounded-lg bg-yellow-500 p-3 text-center font-bold text-black hover:bg-yellow-400"
+        >
+          🏅 Daily Challenge
+        </a>
+
+        <a
+          href="/daily/leaderboard"
           className="mt-4 block text-center text-sm text-blue-400 hover:underline"
         >
-          Pogledaj globalni leaderboard
+          🏅 Daily Leaderboard
         </a>
       </div>
     </main>

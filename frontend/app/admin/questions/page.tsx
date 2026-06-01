@@ -13,6 +13,13 @@ type Question = {
   correctAnswer: string;
 };
 
+type User = {
+  id: string;
+  username: string;
+  email: string;
+  role?: string;
+};
+
 const emptyForm = {
   category: '',
   question: '',
@@ -27,19 +34,37 @@ export default function AdminQuestionsPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
 
   async function fetchQuestions() {
-    const res = await fetch('${process.env.NEXT_PUBLIC_API_URL}/questions');
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/questions`);
     const data = await res.json();
     setQuestions(data);
   }
 
   useEffect(() => {
+    const savedUser = localStorage.getItem('user');
+
+    if (!savedUser) {
+      window.location.href = '/login';
+      return;
+    }
+
+    const parsedUser: User = JSON.parse(savedUser);
+    setUser(parsedUser);
+
     fetchQuestions();
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    if (!user) return;
+
+    const body = {
+      ...form,
+      userId: user.id,
+    };
 
     if (editingId) {
       await fetch(`${process.env.NEXT_PUBLIC_API_URL}/questions/${editingId}`, {
@@ -47,15 +72,15 @@ export default function AdminQuestionsPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify(body),
       });
     } else {
-      await fetch('${process.env.NEXT_PUBLIC_API_URL}/questions', {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/questions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify(body),
       });
     }
 
@@ -81,8 +106,16 @@ export default function AdminQuestionsPage() {
   }
 
   async function deleteQuestion(id: string) {
+    if (!user) return;
+
     await fetch(`${process.env.NEXT_PUBLIC_API_URL}/questions/${id}`, {
       method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId: user.id,
+      }),
     });
 
     fetchQuestions();
@@ -91,6 +124,10 @@ export default function AdminQuestionsPage() {
   return (
     <main className="min-h-screen bg-zinc-900 p-8 text-white">
       <div className="mx-auto max-w-4xl">
+        <a href="/" className="mb-6 block text-blue-400 hover:underline">
+          ← Nazad na igru
+        </a>
+
         <h1 className="mb-8 text-4xl font-bold">Manage Questions</h1>
 
         <form

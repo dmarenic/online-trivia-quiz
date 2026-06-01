@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -18,6 +13,10 @@ model GameResult {
   nickname  String
   score     Int
   createdAt DateTime @default(now())
+  mode String @default("normal")
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
 }
 
 model Question {
@@ -30,4 +29,93 @@ model Question {
   optionD       String
   correctAnswer String
   createdAt     DateTime @default(now())
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  email     String   @unique
+  password  String
+  avatar    String?  @default("default")
+  createdAt DateTime @default(now())
+
+  results      GameResult[]
+  achievements Achievement[]
+
+  sentFriends     Friend[] @relation("FriendSender")
+  receivedFriends Friend[] @relation("FriendReceiver")
+
+  dailyChallengeCompletions DailyChallengeCompletion[]
+
+  dailyStreak Int @default(0)
+  lastDailyDate String?
+
+  xp Int @default(0)
+  level Int @default(1)
+  
+  sentRoomInvites     RoomInvite[] @relation("SentRoomInvites")
+  receivedRoomInvites RoomInvite[] @relation("ReceivedRoomInvites")
+
+  role String @default("USER")
+}
+
+model Achievement {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  userId      String
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Friend {
+  id         String   @id @default(cuid())
+  senderId   String
+  receiverId String
+  createdAt  DateTime @default(now())
+
+  sender   User @relation("FriendSender", fields: [senderId], references: [id])
+  receiver User @relation("FriendReceiver", fields: [receiverId], references: [id])
+
+  @@unique([senderId, receiverId])
+}
+
+model DailyChallenge {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  targetScore Int
+  rewardXp    Int
+  date        String   @unique
+  createdAt   DateTime @default(now())
+  category      String @default("Sport")
+  questionCount Int @default(5)
+
+  completions DailyChallengeCompletion[]
+}
+
+model DailyChallengeCompletion {
+  id          String   @id @default(cuid())
+
+  userId      String
+  challengeId String
+
+  user        User @relation(fields: [userId], references: [id])
+  challenge   DailyChallenge @relation(fields: [challengeId], references: [id])
+
+  completedAt DateTime @default(now())
+
+  @@unique([userId, challengeId])
+}
+
+model RoomInvite {
+  id        String   @id @default(cuid())
+  roomCode  String
+  fromUserId String
+  toUserId   String
+  createdAt DateTime @default(now())
+
+  fromUser User @relation("SentRoomInvites", fields: [fromUserId], references: [id])
+  toUser   User @relation("ReceivedRoomInvites", fields: [toUserId], references: [id])
 }

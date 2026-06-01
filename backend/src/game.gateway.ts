@@ -13,6 +13,8 @@ type Player = {
   nickname: string;
   score: number;
   answeredQuestions: number[];
+  userId?: string;
+  isReady: boolean;
 };
 
 type QuizQuestion = {
@@ -33,9 +35,9 @@ type Room = {
   selectedCategory: string;
   questionStartTime: number;
   questions: QuizQuestion[];
+  questionCount: number;
+  timePerQuestion: number;
 };
-
-const QUESTION_TIME = 15;
 
 function shuffleArray<T>(array: T[]) {
   return [...array].sort(() => Math.random() - 0.5);
@@ -92,7 +94,7 @@ export class GameGateway {
   }
 
   private startQuestionTimer(room: Room) {
-    let timeLeft = QUESTION_TIME;
+    let timeLeft = room.timePerQuestion;
 
     room.acceptingAnswers = true;
     room.questionStartTime = Date.now();
@@ -135,19 +137,67 @@ export class GameGateway {
       correctAnswer: question.correctAnswer,
     }));
   }
+  @SubscribeMessage('join_user_channel')
+joinUserChannel(
+  @MessageBody() data: { userId: string },
+  @ConnectedSocket() client: Socket,
+) {
+  client.join(`user_${data.userId}`);
+}
+
+@SubscribeMessage('send_room_invite')
+async sendRoomInvite(
+  @MessageBody()
+  data: {
+    fromUserId: string;
+    fromUsername: string;
+    toUserId: string;
+    roomCode: string;
+  },
+) {
+  const invite = await this.prisma.roomInvite.create({
+    data: {
+      fromUserId: data.fromUserId,
+      toUserId: data.toUserId,
+      roomCode: data.roomCode,
+    },
+    include: {
+      fromUser: {
+        select: {
+          username: true,
+        },
+      },
+    },
+  });
+
+  this.server.to(`user_${data.toUserId}`).emit('room_invite_received', invite);
+
+  return invite;
+}
 
   @SubscribeMessage('create_room')
   createRoom(
-    @MessageBody() data: { nickname: string },
+    @MessageBody()
+    data: {
+      nickname: string;
+      userId?: string;
+      questionCount?: number;
+      timePerQuestion?: number;
+    },
     @ConnectedSocket() client: Socket,
   ) {
     const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+    const questionCount = Number(data.questionCount) || 10;
+    const timePerQuestion = Number(data.timePerQuestion) || 15;
 
     const player: Player = {
       id: client.id,
       nickname: data.nickname,
       score: 0,
       answeredQuestions: [],
+      userId: data.userId,
+      isReady: true,
     };
 
     const room: Room = {
@@ -160,6 +210,8 @@ export class GameGateway {
       selectedCategory: 'All',
       questionStartTime: 0,
       questions: [],
+      questionCount,
+      timePerQuestion,
     };
 
     this.rooms.set(roomCode, room);
@@ -170,7 +222,7 @@ export class GameGateway {
 
   @SubscribeMessage('join_room')
   joinRoom(
-    @MessageBody() data: { roomCode: string; nickname: string },
+    @MessageBody() data: { roomCode: string; nickname: string; userId?: string },
     @ConnectedSocket() client: Socket,
   ) {
     const room = this.rooms.get(data.roomCode);
@@ -185,6 +237,8 @@ export class GameGateway {
       nickname: data.nickname,
       score: 0,
       answeredQuestions: [],
+      userId: data.userId,
+      isReady: false,
     };
 
     room.players.push(player);
@@ -238,9 +292,37 @@ export class GameGateway {
     });
   }
 
+  @SubscribeMessage('toggle_ready')
+toggleReady(
+  @MessageBody() data: { roomCode: string },
+  @ConnectedSocket() client: Socket,
+) {
+  const room = this.rooms.get(data.roomCode);
+
+  if (!room) return;
+
+  const player = room.players.find((p) => p.id === client.id);
+
+  if (!player) return;
+
+  if (room.hostId === client.id) {
+    client.emit('error_message', 'Host je uvijek spreman.');
+    return;
+  }
+
+  player.isReady = !player.isReady;
+
+  this.server.to(room.code).emit('room_updated', room);
+}
+
   @SubscribeMessage('start_game')
   async startGame(
-    @MessageBody() data: { roomCode: string },
+    @MessageBody()
+data: {
+  roomCode: string;
+  questionCount?: number;
+  timePerQuestion?: number;
+},
     @ConnectedSocket() client: Socket,
   ) {
     const room = this.rooms.get(data.roomCode);
@@ -248,9 +330,32 @@ export class GameGateway {
     if (!room) return;
 
     if (room.hostId !== client.id) {
-      client.emit('error_message', 'Samo host može pokrenuti igru.');
-      return;
-    }
+  client.emit('error_message', 'Samo host može pokrenuti igru.');
+  return;
+}
+
+const allPlayersReady = room.players.every((player) => player.isReady);
+
+if (!allPlayersReady) {
+  client.emit('error_message', 'Ne možeš pokrenuti igru dok svi igrači nisu spremni.');
+  return;
+}
+
+    const questionCount = Number(data.questionCount);
+const timePerQuestion = Number(data.timePerQuestion);
+
+if (questionCount < 1 || questionCount > 50) {
+  client.emit('error_message', 'Broj pitanja mora biti između 1 i 50.');
+  return;
+}
+
+if (timePerQuestion < 5 || timePerQuestion > 60) {
+  client.emit('error_message', 'Vrijeme po pitanju mora biti između 5 i 60 sekundi.');
+  return;
+}
+
+room.questionCount = questionCount;
+room.timePerQuestion = timePerQuestion;
 
     const questions = await this.getQuestionsForCategory(room.selectedCategory);
 
@@ -261,12 +366,13 @@ export class GameGateway {
 
     room.started = true;
     room.currentQuestionIndex = 0;
-    room.questions = shuffleArray(questions);
+    room.questions = shuffleArray(questions).slice(0, room.questionCount);
 
     room.players = room.players.map((player) => ({
       ...player,
       score: 0,
       answeredQuestions: [],
+      isReady: true,
     }));
 
     const question = room.questions[room.currentQuestionIndex];
@@ -277,6 +383,7 @@ export class GameGateway {
       totalQuestions: room.questions.length,
       answeredCount: 0,
       totalPlayers: room.players.length,
+      timePerQuestion: room.timePerQuestion,
     });
 
     this.startQuestionTimer(room);
@@ -380,8 +487,37 @@ export class GameGateway {
           data: {
             nickname: player.nickname,
             score: player.score,
+            userId: player.userId,
           },
         });
+
+        if (player.userId) {
+          if (player.score >= 5000) {
+            await this.prisma.achievement.create({
+              data: {
+                title: 'Speed Demon',
+                description: 'Osvoji više od 5000 bodova u jednoj igri',
+                userId: player.userId,
+              },
+            });
+          }
+
+          const games = await this.prisma.gameResult.count({
+            where: {
+              userId: player.userId,
+            },
+          });
+
+          if (games === 1) {
+            await this.prisma.achievement.create({
+              data: {
+                title: 'First Victory',
+                description: 'Završi svoju prvu igru',
+                userId: player.userId,
+              },
+            });
+          }
+        }
       }
 
       this.server.to(room.code).emit('game_finished', {
@@ -399,6 +535,7 @@ export class GameGateway {
       totalQuestions: room.questions.length,
       answeredCount: 0,
       totalPlayers: room.players.length,
+      timePerQuestion: room.timePerQuestion,
     });
 
     this.startQuestionTimer(room);
