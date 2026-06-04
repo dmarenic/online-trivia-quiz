@@ -2,22 +2,27 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   NotFoundException,
   Param,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentUser } from '../auth/current-user.decorator';
 
 @Controller('users')
 export class UsersController {
   constructor(private prisma: PrismaService) {}
 
-  @Get(':id/match-history')
-  async getMatchHistory(@Param('id') id: string) {
+  @UseGuards(JwtAuthGuard)
+  @Get('me/match-history')
+  async getMyMatchHistory(@CurrentUser() user: any) {
     const matches = await this.prisma.gameResult.findMany({
-      where: { userId: id },
+      where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
       take: 20,
       select: {
@@ -44,16 +49,17 @@ export class UsersController {
     });
   }
 
-  @Get(':id/results')
-  async getResults(@Param('id') id: string) {
+  @UseGuards(JwtAuthGuard)
+  @Get('me/results')
+  async getMyResults(@CurrentUser() user: any) {
     const results = await this.prisma.gameResult.findMany({
-      where: { userId: id },
+      where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
       take: 10,
     });
 
     const achievements = await this.prisma.achievement.findMany({
-      where: { userId: id },
+      where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -63,39 +69,40 @@ export class UsersController {
     };
   }
 
-  @Get(':id/stats')
-  async getUserStats(@Param('id') id: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
+  @UseGuards(JwtAuthGuard)
+  @Get('me/stats')
+  async getMyStats(@CurrentUser() user: any) {
+    const dbUser = await this.prisma.user.findUnique({
+      where: { id: user.id },
       include: {
         results: true,
         achievements: true,
       },
     });
 
-    if (!user) {
+    if (!dbUser) {
       throw new NotFoundException('Korisnik nije pronađen');
     }
 
-    const totalGames = user.results.length;
+    const totalGames = dbUser.results.length;
 
     const bestScore =
       totalGames > 0
-        ? Math.max(...user.results.map((result) => result.score))
+        ? Math.max(...dbUser.results.map((result) => result.score))
         : 0;
 
     const averageScore =
       totalGames > 0
-        ? user.results.reduce((sum, result) => sum + result.score, 0) /
+        ? dbUser.results.reduce((sum, result) => sum + result.score, 0) /
           totalGames
         : 0;
 
-    const totalCorrect = user.results.reduce(
+    const totalCorrect = dbUser.results.reduce(
       (sum, result) => sum + result.correctAnswers,
       0,
     );
 
-    const totalQuestions = user.results.reduce(
+    const totalQuestions = dbUser.results.reduce(
       (sum, result) => sum + result.totalQuestions,
       0,
     );
@@ -108,60 +115,91 @@ export class UsersController {
       bestScore,
       averageScore: Number(averageScore.toFixed(1)),
       accuracy: Number(accuracy.toFixed(1)),
-      totalXp: user.xp,
-      level: user.level,
-      achievementCount: user.achievements.length,
+      totalXp: dbUser.xp,
+      level: dbUser.level,
+      achievementCount: dbUser.achievements.length,
     };
   }
 
-  @Patch(':id/avatar')
+  @UseGuards(JwtAuthGuard)
+  @Patch('me/avatar')
   async updateAvatar(
-    @Param('id') id: string,
+    @CurrentUser() user: any,
     @Body()
     body: {
       avatar: string;
     },
   ) {
     return this.prisma.user.update({
-      where: { id },
+      where: { id: user.id },
       data: {
         avatar: body.avatar,
+      },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        role: true,
+        avatar: true,
+        xp: true,
+        level: true,
+        dailyStreak: true,
+        lastDailyDate: true,
       },
     });
   }
 
+  @UseGuards(JwtAuthGuard)
   @Post('invite-room')
   async inviteToRoom(
+    @CurrentUser() user: any,
     @Body()
     body: {
-      fromUserId: string;
       toUserId: string;
       roomCode: string;
     },
   ) {
+    if (body.toUserId === user.id) {
+      throw new ForbiddenException('Ne možeš poslati pozivnicu sam sebi.');
+    }
+
     return this.prisma.roomInvite.create({
       data: {
-        fromUserId: body.fromUserId,
+        fromUserId: user.id,
         toUserId: body.toUserId,
         roomCode: body.roomCode,
       },
     });
   }
 
+  @UseGuards(JwtAuthGuard)
   @Delete('room-invites/:inviteId')
-  async deleteRoomInvite(@Param('inviteId') inviteId: string) {
+  async deleteRoomInvite(
+    @CurrentUser() user: any,
+    @Param('inviteId') inviteId: string,
+  ) {
+    const invite = await this.prisma.roomInvite.findUnique({
+      where: { id: inviteId },
+    });
+
+    if (!invite || invite.toUserId !== user.id) {
+      throw new ForbiddenException('Nemaš pristup ovoj pozivnici.');
+    }
+
     return this.prisma.roomInvite.delete({
       where: { id: inviteId },
     });
   }
 
-  @Get(':id/room-invites')
-  async getRoomInvites(@Param('id') id: string) {
+  @UseGuards(JwtAuthGuard)
+  @Get('me/room-invites')
+  async getRoomInvites(@CurrentUser() user: any) {
     return this.prisma.roomInvite.findMany({
-      where: { toUserId: id },
+      where: { toUserId: user.id },
       include: {
         fromUser: {
           select: {
+            id: true,
             username: true,
           },
         },
@@ -170,9 +208,10 @@ export class UsersController {
     });
   }
 
-  @Post(':id/friends')
+  @UseGuards(JwtAuthGuard)
+  @Post('me/friends')
   async addFriend(
-    @Param('id') id: string,
+    @CurrentUser() user: any,
     @Body()
     body: {
       username: string;
@@ -191,7 +230,7 @@ export class UsersController {
       };
     }
 
-    if (friend.id === id) {
+    if (friend.id === user.id) {
       return {
         message: 'Ne možeš dodati sebe',
         success: false,
@@ -202,12 +241,12 @@ export class UsersController {
       where: {
         OR: [
           {
-            senderId: id,
+            senderId: user.id,
             receiverId: friend.id,
           },
           {
             senderId: friend.id,
-            receiverId: id,
+            receiverId: user.id,
           },
         ],
       },
@@ -222,7 +261,7 @@ export class UsersController {
 
     await this.prisma.friend.create({
       data: {
-        senderId: id,
+        senderId: user.id,
         receiverId: friend.id,
       },
     });
@@ -232,10 +271,11 @@ export class UsersController {
     };
   }
 
-  @Get(':id/achievements')
-  async getAchievements(@Param('id') id: string) {
+  @UseGuards(JwtAuthGuard)
+  @Get('me/achievements')
+  async getAchievements(@CurrentUser() user: any) {
     const unlocked = await this.prisma.achievement.findMany({
-      where: { userId: id },
+      where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -309,15 +349,28 @@ export class UsersController {
     });
   }
 
-  @Get(':id/friends')
-  async getFriends(@Param('id') id: string) {
+  @UseGuards(JwtAuthGuard)
+  @Get('me/friends')
+  async getFriends(@CurrentUser() user: any) {
     return this.prisma.friend.findMany({
       where: {
-        OR: [{ senderId: id }, { receiverId: id }],
+        OR: [{ senderId: user.id }, { receiverId: user.id }],
       },
       include: {
-        sender: true,
-        receiver: true,
+        sender: {
+          select: {
+            id: true,
+            username: true,
+            avatar: true,
+          },
+        },
+        receiver: {
+          select: {
+            id: true,
+            username: true,
+            avatar: true,
+          },
+        },
       },
     });
   }

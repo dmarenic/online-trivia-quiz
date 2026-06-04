@@ -96,7 +96,6 @@ export default function AdminQuestionsPage() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            userId: user.id,
             topic: aiTopic,
             category: aiCategory,
             difficulty: aiDifficulty,
@@ -130,7 +129,6 @@ export default function AdminQuestionsPage() {
 
     const body = {
       ...form,
-      userId: user.id,
     };
 
     if (editingId) {
@@ -181,7 +179,6 @@ export default function AdminQuestionsPage() {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        userId: user.id,
       }),
     });
 

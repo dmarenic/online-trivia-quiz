@@ -7,7 +7,11 @@ type Question = {
   category: string;
   question: string;
   options: string[];
-  correctAnswer: string;
+};
+
+type DailyAnswer = {
+  questionId: string;
+  answer: string;
 };
 
 type DailyChallenge = {
@@ -28,21 +32,26 @@ export default function DailyPlayPage() {
   const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>(
     []
   );
+  const [answers, setAnswers] = useState<DailyAnswer[]>([]);
 
   useEffect(() => {
     async function loadDaily() {
       const savedUser = localStorage.getItem("user");
+const token = localStorage.getItem("token");
 
-      if (!savedUser) {
-        window.location.href = "/login";
-        return;
-      }
-
-      const user = JSON.parse(savedUser);
+if (!savedUser || !token) {
+  window.location.href = "/login";
+  return;
+}
 
       const statusRes = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/daily-challenge/${user.id}/status`
-      );
+  `${process.env.NEXT_PUBLIC_API_URL}/daily-challenge/status/me`,
+  {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  },
+);
 
       const status = await statusRes.json();
 
@@ -69,62 +78,73 @@ export default function DailyPlayPage() {
     loadDaily();
   }, []);
 
-  async function submitScore(finalScore: number) {
-    const savedUser = localStorage.getItem("user");
+  async function submitAnswers(finalAnswers: DailyAnswer[]) {
+  const savedUser = localStorage.getItem("user");
+  const token = localStorage.getItem("token");
 
-    if (!savedUser) return;
-
-    const user = JSON.parse(savedUser);
-
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/daily-challenge/${user.id}/submit`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          score: finalScore,
-          nickname: user.username,
-        }),
-      }
-    );
-
-    const data = await res.json();
-
-    setResultMessage(data.message || "Rezultat je spremljen.");
-    setUnlockedAchievements(data.unlockedAchievements || []);
-
-    if (data.success) {
-      const updatedUser = {
-        ...user,
-        xp: data.totalXp ?? user.xp,
-        level: data.level ?? user.level,
-        dailyStreak: data.dailyStreak ?? user.dailyStreak,
-        lastDailyDate: new Date().toISOString().split("T")[0],
-      };
-
-      localStorage.setItem("user", JSON.stringify(updatedUser));
-    }
+  if (!savedUser || !token) {
+    window.location.href = "/login";
+    return;
   }
+
+  const user = JSON.parse(savedUser);
+
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/daily-challenge/submit`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        nickname: user.username,
+        answers: finalAnswers,
+      }),
+    }
+  );
+
+  const data = await res.json();
+
+  setScore(data.score ?? 0);
+  setResultMessage(data.message || "Rezultat je spremljen.");
+  setUnlockedAchievements(data.unlockedAchievements || []);
+
+  if (data.success) {
+    const updatedUser = {
+      ...user,
+      xp: data.totalXp ?? user.xp,
+      level: data.level ?? user.level,
+      dailyStreak: data.dailyStreak ?? user.dailyStreak,
+      lastDailyDate: new Date().toISOString().split("T")[0],
+    };
+
+    localStorage.setItem("user", JSON.stringify(updatedUser));
+  }
+}
+
+  
 
   function answer(option: string) {
-    const question = questions[current];
+  const question = questions[current];
 
-    let newScore = score;
+  const newAnswers = [
+    ...answers,
+    {
+      questionId: question.id,
+      answer: option,
+    },
+  ];
 
-    if (option === question.correctAnswer) {
-      newScore = score + 1000;
-      setScore(newScore);
-    }
+  setAnswers(newAnswers);
 
-    if (current + 1 >= questions.length) {
-      submitScore(newScore);
-      setFinished(true);
-    } else {
-      setCurrent((prev) => prev + 1);
-    }
+  if (current + 1 >= questions.length) {
+    submitAnswers(newAnswers);
+    setFinished(true);
+  } else {
+    setCurrent((prev) => prev + 1);
   }
+}
 
   if (!challenge || questions.length === 0) {
     return (

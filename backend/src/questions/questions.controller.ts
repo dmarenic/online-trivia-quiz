@@ -2,21 +2,32 @@ import {
   Body,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   Param,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import { GoogleGenAI } from '@google/genai';
 import { PrismaService } from '../prisma/prisma.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { AdminGuard } from '../auth/admin.guard';
 
 type GenerateAiQuestionsBody = {
-  userId: string;
   topic: string;
   category: string;
   difficulty: string;
   count: number;
+};
+
+type QuestionBody = {
+  category: string;
+  question: string;
+  optionA: string;
+  optionB: string;
+  optionC: string;
+  optionD: string;
+  correctAnswer: string;
 };
 
 type GeneratedQuestion = {
@@ -37,18 +48,6 @@ export class QuestionsController {
 
   constructor(private prisma: PrismaService) {}
 
-  async checkAdmin(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: {
-        id: userId,
-      },
-    });
-
-    if (!user || user.role !== 'ADMIN') {
-      throw new ForbiddenException('Nemaš pristup.');
-    }
-  }
-
   @Get()
   async getQuestions() {
     return this.prisma.question.findMany({
@@ -58,6 +57,7 @@ export class QuestionsController {
     });
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Get('ai/models')
   async listGeminiModels() {
     const models = await this.ai.models.list();
@@ -77,10 +77,9 @@ export class QuestionsController {
     return result;
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Post('generate-ai')
   async generateAiQuestions(@Body() body: GenerateAiQuestionsBody) {
-    await this.checkAdmin(body.userId);
-
     const count = Math.min(Math.max(Number(body.count) || 5, 1), 20);
 
     try {
@@ -161,6 +160,7 @@ Pravila:
             question.optionB &&
             question.optionC &&
             question.optionD &&
+            question.correctAnswer &&
             options.includes(question.correctAnswer)
           );
         });
@@ -194,22 +194,9 @@ Pravila:
     }
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Post()
-  async createQuestion(
-    @Body()
-    body: {
-      userId: string;
-      category: string;
-      question: string;
-      optionA: string;
-      optionB: string;
-      optionC: string;
-      optionD: string;
-      correctAnswer: string;
-    },
-  ) {
-    await this.checkAdmin(body.userId);
-
+  async createQuestion(@Body() body: QuestionBody) {
     return this.prisma.question.create({
       data: {
         category: body.category,
@@ -223,16 +210,9 @@ Pravila:
     });
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Delete(':id')
-  async deleteQuestion(
-    @Param('id') id: string,
-    @Body()
-    body: {
-      userId: string;
-    },
-  ) {
-    await this.checkAdmin(body.userId);
-
+  async deleteQuestion(@Param('id') id: string) {
     return this.prisma.question.delete({
       where: {
         id,
@@ -240,23 +220,9 @@ Pravila:
     });
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Patch(':id')
-  async updateQuestion(
-    @Param('id') id: string,
-    @Body()
-    body: {
-      userId: string;
-      category: string;
-      question: string;
-      optionA: string;
-      optionB: string;
-      optionC: string;
-      optionD: string;
-      correctAnswer: string;
-    },
-  ) {
-    await this.checkAdmin(body.userId);
-
+  async updateQuestion(@Param('id') id: string, @Body() body: QuestionBody) {
     return this.prisma.question.update({
       where: {
         id,

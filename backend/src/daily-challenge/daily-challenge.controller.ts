@@ -1,5 +1,14 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentUser } from '../auth/current-user.decorator';
 
 const DAILY_CATEGORIES = ['Geografija', 'Matematika', 'Računarstvo', 'Sport'];
 
@@ -64,8 +73,10 @@ export class DailyChallengeController {
     return challenge;
   }
 
-  @Get(':userId/status')
-  async getDailyStatus(@Param('userId') userId: string) {
+  @UseGuards(JwtAuthGuard)
+  @Get('status/me')
+  async getDailyStatus(@CurrentUser() user: any) {
+    const userId = user.id;
     const today = new Date().toISOString().split('T')[0];
 
     const challenge = await this.prisma.dailyChallenge.findUnique({
@@ -123,19 +134,20 @@ export class DailyChallengeController {
         question.optionC,
         question.optionD,
       ],
-      correctAnswer: question.correctAnswer,
     }));
   }
 
-  @Post(':userId/submit')
+  @UseGuards(JwtAuthGuard)
+  @Post('submit')
   async submitDailyResult(
-    @Param('userId') userId: string,
+    @CurrentUser() user: any,
     @Body()
     body: {
       score: number;
       nickname: string;
     },
   ) {
+    const userId = user.id;
     const today = new Date().toISOString().split('T')[0];
 
     const challenge = await this.prisma.dailyChallenge.findUnique({

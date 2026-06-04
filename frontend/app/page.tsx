@@ -187,7 +187,7 @@ export default function Home() {
         <input
           className="mb-4 w-full rounded-lg bg-white p-3 text-black"
           placeholder="Unesi nickname"
-          value={nickname}
+          value={nickname || ''}
           onChange={(e) => setNickname(e.target.value)}
         />
 

@@ -30,10 +30,8 @@ export default function LoginPage() {
       return;
     }
 
-    localStorage.setItem(
-      "user",
-      JSON.stringify(data),
-    );
+    localStorage.setItem("user", JSON.stringify(data.user));
+    localStorage.setItem("token", data.accessToken);
 
     router.push("/");
   }

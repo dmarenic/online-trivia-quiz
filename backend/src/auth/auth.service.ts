@@ -1,10 +1,22 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class AuthService {
-  private prisma = new PrismaClient();
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
+  ) {}
+
+  private createToken(user: { id: string; email: string; role: string }) {
+    return this.jwtService.sign({
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    });
+  }
 
   async register(body: any) {
     const { username, email, password } = body;
@@ -25,7 +37,7 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    return this.prisma.user.create({
+    const user = await this.prisma.user.create({
       data: {
         username,
         email,
@@ -44,6 +56,11 @@ export class AuthService {
         lastDailyDate: true,
       },
     });
+
+    return {
+      user,
+      accessToken: this.createToken(user),
+    };
   }
 
   async login(body: any) {
@@ -69,7 +86,7 @@ export class AuthService {
       throw new BadRequestException('Pogrešan email ili password.');
     }
 
-    return {
+    const safeUser = {
       id: user.id,
       username: user.username,
       email: user.email,
@@ -79,6 +96,11 @@ export class AuthService {
       level: user.level,
       dailyStreak: user.dailyStreak,
       lastDailyDate: user.lastDailyDate,
+    };
+
+    return {
+      user: safeUser,
+      accessToken: this.createToken(user),
     };
   }
 }

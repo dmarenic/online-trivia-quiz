@@ -47,9 +47,19 @@ function shuffleArray<T>(array: T[]) {
   return [...array].sort(() => Math.random() - 0.5);
 }
 
+function toPublicQuestion(question: any) {
+  return {
+    id: question.id,
+    category: question.category,
+    question: question.question,
+    options: question.options,
+  };
+}
+
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: ['http://localhost:3000', 'http://localhost:3001'],
+    credentials: true,
   },
 })
 export class GameGateway implements OnGatewayDisconnect {
@@ -567,16 +577,16 @@ if (room.players.length === 0) {
       isReady: player.id === room.hostId ? true : player.isReady,
     }));
 
-    const firstQuestion = room.questions[0];
+    const nextQuestion = room.questions[room.currentQuestionIndex];
 
-    this.server.to(room.code).emit('game_started', {
-      question: firstQuestion,
-      questionNumber: 1,
-      totalQuestions: room.questions.length,
-      answeredCount: 0,
-      totalPlayers: room.players.length,
-      timePerQuestion: room.timePerQuestion,
-    });
+this.server.to(room.code).emit('question_started', {
+  question: toPublicQuestion(nextQuestion),
+  questionNumber: room.currentQuestionIndex + 1,
+  totalQuestions: room.questions.length,
+  answeredCount: 0,
+  totalPlayers: room.players.length,
+  timePerQuestion: room.timePerQuestion,
+});
 
     this.startQuestionTimer(room);
   }
@@ -683,14 +693,14 @@ if (room.players.length === 0) {
 
     const nextQuestion = room.questions[room.currentQuestionIndex];
 
-    this.server.to(room.code).emit('question_started', {
-      question: nextQuestion,
-      questionNumber: room.currentQuestionIndex + 1,
-      totalQuestions: room.questions.length,
-      answeredCount: 0,
-      totalPlayers: room.players.length,
-      timePerQuestion: room.timePerQuestion,
-    });
+this.server.to(room.code).emit('question_started', {
+  question: toPublicQuestion(nextQuestion),
+  questionNumber: room.currentQuestionIndex + 1,
+  totalQuestions: room.questions.length,
+  answeredCount: 0,
+  totalPlayers: room.players.length,
+  timePerQuestion: room.timePerQuestion,
+});
 
     this.startQuestionTimer(room);
   }

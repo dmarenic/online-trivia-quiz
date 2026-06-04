@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 import {
   CartesianGrid,
   Line,
@@ -9,7 +9,7 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-} from "recharts";
+} from 'recharts';
 
 type User = {
   id: string;
@@ -64,6 +64,15 @@ type RoomInvite = {
   };
 };
 
+function getAuthHeaders() {
+  const token = localStorage.getItem('token');
+
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  };
+}
+
 export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
   const [results, setResults] = useState<GameResult[]>([]);
@@ -72,66 +81,90 @@ export default function ProfilePage() {
   const [stats, setStats] = useState<UserStats | null>(null);
   const [matchHistory, setMatchHistory] = useState<MatchHistoryItem[]>([]);
   const [roomInvites, setRoomInvites] = useState<RoomInvite[]>([]);
-  const [avatarInput, setAvatarInput] = useState("");
+  const [avatarInput, setAvatarInput] = useState('');
 
   useEffect(() => {
-    const savedUser = localStorage.getItem("user");
+    async function loadProfile() {
+      const savedUser = localStorage.getItem('user');
+      const token = localStorage.getItem('token');
 
-    if (!savedUser) {
-      window.location.href = "/login";
-      return;
+      if (!savedUser || !token) {
+        window.location.href = '/login';
+        return;
+      }
+
+      const parsedUser: User = JSON.parse(savedUser);
+
+      setUser(parsedUser);
+      setAvatarInput(parsedUser.avatar || parsedUser.username);
+
+      try {
+        const statsRes = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/users/me/stats`,
+          { headers: getAuthHeaders() },
+        );
+        const statsData = await statsRes.json();
+        setStats(statsData);
+      } catch (err) {
+        console.error('Greška kod statistike:', err);
+      }
+
+      try {
+        const historyRes = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/users/me/match-history`,
+          { headers: getAuthHeaders() },
+        );
+        const historyData = await historyRes.json();
+        setMatchHistory(Array.isArray(historyData) ? historyData : []);
+      } catch (err) {
+        console.error('Greška kod match history:', err);
+      }
+
+      try {
+        const resultsRes = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/users/me/results`,
+          { headers: getAuthHeaders() },
+        );
+        const resultsData = await resultsRes.json();
+
+        setResults(resultsData.results || []);
+        setAchievements(resultsData.achievements || []);
+
+        setDailyResults(
+          Array.isArray(resultsData.results)
+            ? resultsData.results.filter(
+                (result: GameResult & { mode?: string }) =>
+                  result.mode === 'daily',
+              )
+            : [],
+        );
+      } catch (err) {
+        console.error('Greška kod rezultata:', err);
+      }
+
+      try {
+        const invitesRes = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/users/me/room-invites`,
+          { headers: getAuthHeaders() },
+        );
+        const invitesData = await invitesRes.json();
+        setRoomInvites(Array.isArray(invitesData) ? invitesData : []);
+      } catch (err) {
+        console.error('Greška kod pozivnica:', err);
+      }
     }
 
-    const parsedUser: User = JSON.parse(savedUser);
-
-    setUser(parsedUser);
-    setAvatarInput(parsedUser.avatar || parsedUser.username);
-
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/${parsedUser.id}/stats`)
-      .then((res) => res.json())
-      .then((data) => setStats(data))
-      .catch((err) => console.error("Greška kod statistike:", err));
-
-    fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/users/${parsedUser.id}/match-history`,
-    )
-      .then((res) => res.json())
-      .then((data) => setMatchHistory(Array.isArray(data) ? data : []))
-      .catch((err) => console.error("Greška kod match history:", err));
-
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/${parsedUser.id}/results`)
-      .then((res) => res.json())
-      .then((data) => {
-        setResults(data.results || []);
-        setAchievements(data.achievements || []);
-      })
-      .catch((err) => console.error("Greška kod rezultata:", err));
-
-    fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/users/${parsedUser.id}/room-invites`,
-    )
-      .then((res) => res.json())
-      .then((data) => setRoomInvites(Array.isArray(data) ? data : []))
-      .catch((err) => console.error("Greška kod pozivnica:", err));
-
-    fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/users/${parsedUser.id}/daily-results`,
-    )
-      .then((res) => res.json())
-      .then((data) => setDailyResults(Array.isArray(data) ? data : []))
-      .catch((err) => console.error("Greška kod daily rezultata:", err));
+    loadProfile();
   }, []);
 
   async function updateAvatar() {
     if (!user || !avatarInput.trim()) return;
 
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/users/${user.id}/avatar`,
+      `${process.env.NEXT_PUBLIC_API_URL}/users/me/avatar`,
       {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        method: 'PATCH',
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           avatar: avatarInput,
         }),
@@ -139,7 +172,7 @@ export default function ProfilePage() {
     );
 
     if (!res.ok) {
-      alert("Greška kod spremanja avatara.");
+      alert('Greška kod spremanja avatara.');
       return;
     }
 
@@ -151,7 +184,24 @@ export default function ProfilePage() {
     };
 
     setUser(newUser);
-    localStorage.setItem("user", JSON.stringify(newUser));
+    localStorage.setItem('user', JSON.stringify(newUser));
+  }
+
+  async function deleteInvite(inviteId: string) {
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/users/room-invites/${inviteId}`,
+      {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      },
+    );
+
+    if (!res.ok) {
+      alert('Greška kod brisanja pozivnice.');
+      return;
+    }
+
+    setRoomInvites((prev) => prev.filter((invite) => invite.id !== inviteId));
   }
 
   const xp = stats?.totalXp ?? user?.xp ?? 0;
@@ -300,7 +350,7 @@ export default function ProfilePage() {
                   <div className="flex justify-between">
                     <div>
                       <p className="font-bold">
-                        {new Date(match.createdAt).toLocaleDateString("hr-HR")}
+                        {new Date(match.createdAt).toLocaleDateString('hr-HR')}
                       </p>
                       <p className="text-sm text-zinc-400">
                         Mode: {match.mode}
@@ -335,12 +385,21 @@ export default function ProfilePage() {
                     sobu <strong>{invite.roomCode}</strong>
                   </p>
 
-                  <a
-                    href={`/?room=${invite.roomCode}`}
-                    className="block rounded-lg bg-blue-600 p-3 text-center font-bold hover:bg-blue-700"
-                  >
-                    Pridruži se sobi
-                  </a>
+                  <div className="flex gap-3">
+                    <a
+                      href={`/?room=${invite.roomCode}`}
+                      className="flex-1 rounded-lg bg-blue-600 p-3 text-center font-bold hover:bg-blue-700"
+                    >
+                      Pridruži se sobi
+                    </a>
+
+                    <button
+                      onClick={() => deleteInvite(invite.id)}
+                      className="rounded-lg bg-red-600 px-4 font-bold hover:bg-red-700"
+                    >
+                      Obriši
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -360,7 +419,7 @@ export default function ProfilePage() {
                   className="flex justify-between rounded-lg bg-zinc-700 p-4"
                 >
                   <span>
-                    {new Date(result.createdAt).toLocaleDateString("hr-HR")}
+                    {new Date(result.createdAt).toLocaleDateString('hr-HR')}
                   </span>
                   <b>{result.score} bodova</b>
                 </div>
@@ -382,7 +441,7 @@ export default function ProfilePage() {
                   className="flex justify-between rounded-lg bg-zinc-700 p-4"
                 >
                   <span>
-                    {new Date(result.createdAt).toLocaleDateString("hr-HR")}
+                    {new Date(result.createdAt).toLocaleDateString('hr-HR')}
                   </span>
                   <b>{result.score} bodova</b>
                 </div>
