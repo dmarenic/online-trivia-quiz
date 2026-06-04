@@ -12,6 +12,8 @@ model GameResult {
   id        String   @id @default(cuid())
   nickname  String
   score     Int
+  correctAnswers Int @default(0)
+  totalQuestions  Int @default(0)
   createdAt DateTime @default(now())
   mode String @default("normal")
 

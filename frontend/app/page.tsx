@@ -1,41 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
-const socket = io(API_URL);
-
-type Player = {
-  id: string;
-  nickname: string;
-  score: number;
-  answeredQuestions?: number[];
-  isReady?: boolean;
-};
-
-type Room = {
-  code: string;
-  hostId: string;
-  started?: boolean;
-  players: Player[];
-  selectedCategory?: string;
-  questionCount?: number;
-  timePerQuestion?: number;
-};
-
-type Question = {
-  category: string;
-  question: string;
-  options: string[];
-  correctAnswer: string;
-};
-
-type ChatMessage = {
-  nickname: string;
-  message: string;
-  createdAt: string;
-};
+import { io, Socket } from 'socket.io-client';
 
 type User = {
   id: string;
@@ -45,776 +11,114 @@ type User = {
   avatar?: string;
 };
 
+type Invite = {
+  id: string;
+  roomCode: string;
+  fromUser?: {
+    username?: string;
+  };
+};
+
+function playSound(src: string) {
+  const audio = new Audio(src);
+  audio.volume = 0.6;
+  audio.play().catch(() => {});
+}
+
 export default function Home() {
   const [nickname, setNickname] = useState('');
   const [roomCode, setRoomCode] = useState('');
-  const [room, setRoom] = useState<Room | null>(null);
-  const [question, setQuestion] = useState<Question | null>(null);
-  const [questionNumber, setQuestionNumber] = useState(1);
-  const [totalQuestions, setTotalQuestions] = useState(5);
-  const [leaderboard, setLeaderboard] = useState<Player[]>([]);
-  const [gameFinished, setGameFinished] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(15);
-  const [questionEnded, setQuestionEnded] = useState(false);
-  const [hasAnswered, setHasAnswered] = useState(false);
-  const [answeredCount, setAnsweredCount] = useState(0);
-  const [totalPlayers, setTotalPlayers] = useState(0);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
   const [user, setUser] = useState<User | null>(null);
-  const [friends, setFriends] = useState<any[]>([]);
-  const [roomInvites, setRoomInvites] = useState<any[]>([]);
-  const [timePerQuestion, setTimePerQuestion] = useState(15);
-  const [questionCount, setQuestionCount] = useState(10);
-
-  const [answerResult, setAnswerResult] = useState<{
-    isCorrect: boolean;
-    correctAnswer: string;
-    pointsEarned: number;
-  } | null>(null);
-
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [chatInput, setChatInput] = useState('');
-
-  const shouldShowLeaderboard = hasAnswered || questionEnded;
-  const isHost = room?.hostId === socket.id;
+  const [invites, setInvites] = useState<Invite[]>([]);
 
   useEffect(() => {
-    socket.on('room_invite_received', (invite) => {
-  setRoomInvites((prev) => [invite, ...prev]);
-});
+    const savedUser = localStorage.getItem('user');
+
     const params = new URLSearchParams(window.location.search);
     const roomFromUrl = params.get('room');
 
     if (roomFromUrl) {
-      setRoomCode(roomFromUrl);
+      setRoomCode(roomFromUrl.toUpperCase());
     }
 
-    const savedUser = localStorage.getItem('user');
+    if (!savedUser) return;
 
-    if (savedUser) {
-      const parsedUser = JSON.parse(savedUser);
-      setUser(parsedUser);
-      setNickname(parsedUser.username);
+    const parsedUser: User = JSON.parse(savedUser);
 
+    setUser(parsedUser);
+    setNickname(parsedUser.username);
+
+    const socket: Socket = io(process.env.NEXT_PUBLIC_API_URL!, {
+      transports: ['websocket'],
+    });
+
+    socket.on('connect', () => {
       socket.emit('join_user_channel', {
-  userId: parsedUser.id,
-});
-
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/${parsedUser.id}/friends`)
-        .then((res) => res.json())
-        .then((data) => setFriends(data))
-        .catch(() => setFriends([]));
-
-      fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/users/${parsedUser.id}/room-invites`,
-      )
-        .then((res) => res.json())
-        .then((data) => setRoomInvites(data))
-        .catch(() => setRoomInvites([]));
-    }
-
-    socket.on('room_created', (roomData: Room) => {
-      setRoom(roomData);
-      setSelectedCategory(roomData.selectedCategory ?? 'All');
-      setTotalPlayers(roomData.players.length);
-      setQuestionCount(roomData.questionCount ?? 10);
-      setTimePerQuestion(roomData.timePerQuestion ?? 15);
+        userId: parsedUser.id,
+      });
     });
 
-    socket.on('room_updated', (roomData: Room) => {
-  setRoom(roomData);
-});
+    socket.on('room_invite_received', (invite: Invite) => {
+      playSound('/sounds/invite-received.mp3');
 
-    socket.on('player_joined', (roomData: Room) => {
-      setRoom(roomData);
-      setSelectedCategory(roomData.selectedCategory ?? 'All');
-      setTotalPlayers(roomData.players.length);
+      setInvites((prev) => {
+        const alreadyExists = prev.some((item) => item.id === invite.id);
+
+        if (alreadyExists) return prev;
+
+        return [invite, ...prev];
+      });
     });
 
-    socket.on('category_updated', (data: { category: string }) => {
-      setSelectedCategory(data.category);
-    });
-
-    socket.on('new_message', (message: ChatMessage) => {
-      setChatMessages((prev) => [...prev, message]);
-    });
-
-    socket.on(
-      'game_started',
-      (data: {
-        question: Question;
-        questionNumber: number;
-        totalQuestions: number;
-        answeredCount: number;
-        totalPlayers: number;
-        timePerQuestion?: number;
-      }) => {
-        setQuestion(data.question);
-        setQuestionNumber(data.questionNumber);
-        setTotalQuestions(data.totalQuestions);
-        setAnsweredCount(data.answeredCount);
-        setTotalPlayers(data.totalPlayers);
-        setTimeLeft(data.timePerQuestion ?? timePerQuestion);
-        setLeaderboard([]);
-        setGameFinished(false);
-        setQuestionEnded(false);
-        setHasAnswered(false);
-        setAnswerResult(null);
-        setErrorMessage('');
-      },
-    );
-
-    socket.on(
-      'question_started',
-      (data: {
-        question: Question;
-        questionNumber: number;
-        totalQuestions: number;
-        answeredCount: number;
-        totalPlayers: number;
-        timePerQuestion?: number;
-      }) => {
-        setQuestion(data.question);
-        setQuestionNumber(data.questionNumber);
-        setTotalQuestions(data.totalQuestions);
-        setAnsweredCount(data.answeredCount);
-        setTotalPlayers(data.totalPlayers);
-        setTimeLeft(data.timePerQuestion ?? timePerQuestion);
-        setLeaderboard([]);
-        setQuestionEnded(false);
-        setHasAnswered(false);
-        setAnswerResult(null);
-        setErrorMessage('');
-      },
-    );
-
-    socket.on('timer_updated', (time: number) => {
-      setTimeLeft(time);
-    });
-
-    socket.on(
-      'answer_result',
-      (result: {
-        isCorrect: boolean;
-        correctAnswer: string;
-        pointsEarned: number;
-        players: Player[];
-        answeredCount: number;
-        totalPlayers: number;
-      }) => {
-        setAnswerResult({
-          isCorrect: result.isCorrect,
-          correctAnswer: result.correctAnswer,
-          pointsEarned: result.pointsEarned,
-        });
-
-        setAnsweredCount(result.answeredCount);
-        setTotalPlayers(result.totalPlayers);
-        setLeaderboard([...result.players].sort((a, b) => b.score - a.score));
-      },
-    );
-
-    socket.on(
-      'answer_status_updated',
-      (data: { answeredCount: number; totalPlayers: number }) => {
-        setAnsweredCount(data.answeredCount);
-        setTotalPlayers(data.totalPlayers);
-      },
-    );
-
-    socket.on(
-      'question_ended',
-      (data: {
-        players: Player[];
-        answeredCount: number;
-        totalPlayers: number;
-      }) => {
-        setQuestionEnded(true);
-        setAnsweredCount(data.answeredCount);
-        setTotalPlayers(data.totalPlayers);
-        setLeaderboard([...data.players].sort((a, b) => b.score - a.score));
-      },
-    );
-
-    socket.on('game_finished', (data: { players: Player[] }) => {
-      setQuestion(null);
-      setGameFinished(true);
-      setLeaderboard([...data.players].sort((a, b) => b.score - a.score));
-    });
-
-    socket.on('error_message', (message: string) => {
-      setErrorMessage(message);
-
-      setTimeout(() => {
-        setErrorMessage('');
-      }, 4000);
-    });
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/${parsedUser.id}/invites`)
+      .then((res) => {
+        if (!res.ok) return [];
+        return res.json();
+      })
+      .then((data) => {
+        setInvites(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        setInvites([]);
+      });
 
     return () => {
-      socket.off('room_created');
-      socket.off('player_joined');
-      socket.off('category_updated');
-      socket.off('new_message');
-      socket.off('game_started');
-      socket.off('question_started');
-      socket.off('timer_updated');
-      socket.off('answer_result');
-      socket.off('answer_status_updated');
-      socket.off('question_ended');
-      socket.off('game_finished');
-      socket.off('error_message');
-      socket.off('room_invite_received');
-      socket.off('room_updated');
+      socket.disconnect();
     };
-  }, [timePerQuestion]);
+  }, []);
 
   function logout() {
     localStorage.removeItem('user');
+    localStorage.removeItem('nickname');
+    localStorage.removeItem('currentRoom');
+    localStorage.removeItem('returnToRoom');
+    localStorage.removeItem('lastRoomCode');
+
     setUser(null);
     setNickname('');
+    setRoomCode('');
+    setInvites([]);
   }
 
   function createRoom() {
-    if (!nickname) return;
+    if (!nickname.trim()) return;
 
-    socket.emit('create_room', {
-      nickname,
-      userId: user?.id,
-      questionCount,
-      timePerQuestion,
-    });
+    localStorage.setItem('nickname', nickname.trim());
+    window.location.href = '/room?mode=create';
   }
 
-  function joinRoom() {
-    if (!nickname || !roomCode) return;
+  function joinRoom(code?: string) {
+    const finalRoomCode = (code ?? roomCode).trim().toUpperCase();
 
-    socket.emit('join_room', {
-      roomCode,
-      nickname,
-      userId: user?.id,
-    });
-  }
+    if (!nickname.trim() || !finalRoomCode) return;
 
-  function changeCategory(category: string) {
-    if (!room) return;
+    playSound('/sounds/join-room.mp3');
 
-    setSelectedCategory(category);
+    localStorage.setItem('nickname', nickname.trim());
 
-    socket.emit('set_category', {
-      roomCode: room.code,
-      category,
-    });
-  }
-
-  function toggleReady() {
-  if (!room) return;
-
-  socket.emit('toggle_ready', {
-    roomCode: room.code,
-  });
-}
-
-  function submitAnswer(answer: string) {
-    if (!room || hasAnswered || questionEnded) return;
-
-    setHasAnswered(true);
-
-    socket.emit('submit_answer', {
-      roomCode: room.code,
-      answer,
-    });
-  }
-
-  function sendMessage() {
-    if (!room || !chatInput.trim()) return;
-
-    socket.emit('send_message', {
-      roomCode: room.code,
-      nickname,
-      message: chatInput,
-    });
-
-    setChatInput('');
-  }
-
-  async function declineRoomInvite(inviteId: string) {
-  await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/room-invites/${inviteId}`, {
-    method: 'DELETE',
-  });
-
-  setRoomInvites((prev) => prev.filter((invite) => invite.id !== inviteId));
-}
-
-  function inviteFriend(friendId: string) {
-  if (!user || !room) return;
-
-  socket.emit('send_room_invite', {
-    fromUserId: user.id,
-    fromUsername: user.username,
-    toUserId: friendId,
-    roomCode: room.code,
-  });
-
-  alert('Pozivnica poslana!');
-}
-
-  if (user?.role === 'ADMIN') {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-900 text-white">
-        <div className="w-full max-w-md rounded-2xl bg-zinc-800 p-8 text-center shadow-xl">
-          <h1 className="mb-4 text-4xl font-bold">⚙️ Admin Panel</h1>
-
-          <p className="mb-8 text-zinc-400">
-            Prijavljen kao admin: {user.username}
-          </p>
-
-          <a
-            href="/admin/questions"
-            className="mb-4 block w-full rounded-lg bg-purple-600 p-4 font-bold hover:bg-purple-700"
-          >
-            Upravljanje pitanjima
-          </a>
-
-          <a
-            href="/profile"
-            className="mb-4 block text-blue-400 hover:underline"
-          >
-            Moj profil
-          </a>
-
-          <a
-            href="/friends"
-            className="mb-4 block text-blue-400 hover:underline"
-          >
-            Friends
-          </a>
-
-          <button
-            onClick={logout}
-            className="w-full rounded-lg bg-red-600 p-4 font-bold hover:bg-red-700"
-          >
-            Odjava
-          </button>
-        </div>
-      </main>
-    );
-  }
-
-  if (gameFinished) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-900 p-6 text-white">
-        <div className="w-full max-w-2xl rounded-2xl bg-zinc-800 p-8 shadow-xl">
-          <h1 className="mb-8 text-center text-5xl font-bold">Game Over</h1>
-
-          <div className="space-y-4">
-            {leaderboard.map((player, index) => (
-              <div
-                key={player.id}
-                className="flex items-center justify-between rounded-xl bg-zinc-700 p-4"
-              >
-                <div className="flex items-center gap-4">
-                  <span className="text-2xl">
-                    {index === 0
-                      ? '🥇'
-                      : index === 1
-                        ? '🥈'
-                        : index === 2
-                          ? '🥉'
-                          : '🎮'}
-                  </span>
-
-                  <img
-                    src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${player.nickname}`}
-                    className="h-14 w-14 rounded-full"
-                    alt=""
-                  />
-
-                  <div>
-                    <p className="text-xl font-bold">{player.nickname}</p>
-                    <p className="text-sm text-zinc-400">#{index + 1} mjesto</p>
-                  </div>
-                </div>
-
-                <span className="text-2xl font-bold">{player.score}</span>
-              </div>
-            ))}
-          </div>
-
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-8 w-full rounded-xl bg-blue-600 p-4 text-xl font-bold hover:bg-blue-700"
-          >
-            Igraj ponovno
-          </button>
-
-          <a
-            href="/leaderboard"
-            className="mt-4 block text-center text-blue-400 hover:underline"
-          >
-            Pogledaj globalni leaderboard
-          </a>
-        </div>
-      </main>
-    );
-  }
-
-  if (question) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-900 text-white">
-        <div className="w-full max-w-xl rounded-2xl bg-zinc-800 p-8 shadow-xl">
-          {errorMessage && (
-            <div className="mb-6 rounded-lg bg-yellow-500 p-3 text-center font-bold text-black">
-              {errorMessage}
-            </div>
-          )}
-
-          <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-xl font-bold">Vrijeme: {timeLeft}s</h2>
-
-            {hasAnswered && (
-              <span className="rounded-lg bg-green-600 px-3 py-1 text-sm font-bold">
-                Odgovoreno
-              </span>
-            )}
-          </div>
-
-          <div className="mb-6 rounded-lg bg-zinc-700 p-3 text-center">
-            Odgovorilo je {answeredCount} / {totalPlayers} igrača
-          </div>
-
-          <p className="mb-2 text-center text-sm uppercase tracking-widest text-purple-400">
-            {question.category}
-          </p>
-
-          <p className="mb-4 text-center text-lg text-zinc-300">
-            Pitanje {questionNumber} / {totalQuestions}
-          </p>
-
-          <h1 className="mb-8 text-3xl font-bold">{question.question}</h1>
-
-          <div className="space-y-4">
-            {question.options.map((option) => (
-              <button
-                key={option}
-                onClick={() => submitAnswer(option)}
-                disabled={hasAnswered || questionEnded}
-                className="w-full rounded-lg bg-blue-600 p-4 text-left font-bold hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-zinc-600"
-              >
-                {option}
-              </button>
-            ))}
-          </div>
-
-          {answerResult && (
-            <div
-              className={`mt-6 rounded-lg p-3 text-center font-bold ${
-                answerResult.isCorrect ? 'bg-green-600' : 'bg-red-600'
-              }`}
-            >
-              {answerResult.isCorrect
-                ? `Točan odgovor! +${answerResult.pointsEarned} bodova`
-                : `Netočno! Točan odgovor je: ${answerResult.correctAnswer}`}
-            </div>
-          )}
-
-          {questionEnded && (
-            <p className="mt-6 rounded-lg bg-red-600 p-3 text-center font-bold">
-              Pitanje je završeno!
-            </p>
-          )}
-
-          {shouldShowLeaderboard && leaderboard.length > 0 && (
-            <div className="mt-8 rounded-xl bg-zinc-700 p-4">
-              <h2 className="mb-2 text-center text-3xl font-bold">
-                🏆 Room Leaderboard
-              </h2>
-
-              <p className="mb-6 text-center text-sm text-zinc-400">
-                Trenutni poredak igrača u sobi
-              </p>
-
-              <div className="space-y-2">
-                {leaderboard.map((player, index) => (
-                  <div
-                    key={player.id}
-                    className="flex items-center justify-between rounded-xl bg-zinc-800 p-4"
-                  >
-                    <div className="flex items-center gap-4">
-                      <span className="text-2xl">
-                        {index === 0
-                          ? '🥇'
-                          : index === 1
-                            ? '🥈'
-                            : index === 2
-                              ? '🥉'
-                              : '🎮'}
-                      </span>
-
-                      <img
-                        src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${player.nickname}`}
-                        className="h-12 w-12 rounded-full"
-                        alt=""
-                      />
-
-                      <div>
-                        <p className="font-bold">{player.nickname}</p>
-                        <p className="text-sm text-zinc-400">
-                          #{index + 1} mjesto
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <p className="text-2xl font-bold">{player.score}</p>
-                      <p className="text-xs text-zinc-400">bodova</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {isHost && (
-                <button
-                  onClick={() =>
-                    socket.emit('next_question', {
-                      roomCode: room?.code,
-                    })
-                  }
-                  className="mt-6 w-full rounded-lg bg-purple-600 p-3 font-bold hover:bg-purple-700"
-                >
-                  ➡️ Sljedeće pitanje
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      </main>
-    );
-  }
-
-  if (room) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-900 text-white">
-        <div className="w-full max-w-md rounded-2xl bg-zinc-800 p-8 shadow-xl">
-          {errorMessage && (
-            <div className="mb-6 rounded-lg bg-yellow-500 p-3 text-center font-bold text-black">
-              {errorMessage}
-            </div>
-          )}
-
-          <h1 className="mb-2 text-center text-4xl font-bold">Lobby</h1>
-
-          <p className="mb-6 text-center text-xl">
-            Room Code: <b>{room.code}</b>
-          </p>
-
-          <div className="mb-6 rounded-lg bg-zinc-700 p-4 text-center">
-            <p className="font-bold">Postavke sobe</p>
-            <p>Broj pitanja: {questionCount}</p>
-            <p>Vrijeme po pitanju: {timePerQuestion}s</p>
-            <p>Kategorija: {selectedCategory}</p>
-          </div>
-
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(
-                `${window.location.origin}/?room=${room.code}`,
-              );
-
-              alert('Invite link kopiran!');
-            }}
-            className="mb-6 w-full rounded-lg bg-blue-600 p-3 font-bold hover:bg-blue-700"
-          >
-            👥 Kopiraj invite link
-          </button>
-
-          <p className="mb-6 text-center text-sm text-zinc-400">
-            Pošalji prijatelju link za automatski ulazak u sobu
-          </p>
-
-          {isHost && friends.length > 0 && (
-            <div className="mb-6 rounded-xl bg-zinc-700 p-4">
-              <h2 className="mb-4 text-xl font-bold">👥 Pozovi prijatelje</h2>
-
-              <div className="space-y-3">
-                {friends.map((friend) => {
-  const realFriend =
-    friend.senderId === user?.id ? friend.receiver : friend.sender;
-
-  return (
-    <div
-      key={friend.id}
-      className="flex items-center justify-between rounded-lg bg-zinc-800 p-3"
-    >
-      <span>{realFriend.username}</span>
-
-      <button
-        onClick={() => inviteFriend(realFriend.id)}
-        className="rounded-lg bg-blue-600 px-4 py-2 font-bold hover:bg-blue-700"
-      >
-        Pozovi
-      </button>
-    </div>
-  );
-})}
-              </div>
-            </div>
-          )}
-
-          <select
-            className="mb-4 w-full rounded-lg bg-zinc-700 p-3 text-white disabled:bg-zinc-600"
-            value={selectedCategory}
-            disabled={!isHost || !!question}
-            onChange={(e) => changeCategory(e.target.value)}
-          >
-            <option value="All">Sve kategorije</option>
-            <option value="Geografija">Geografija</option>
-            <option value="Matematika">Matematika</option>
-            <option value="Računarstvo">Računarstvo</option>
-            <option value="Sport">Sport</option>
-          </select>
-
-          {isHost && (
-            <>
-              <label className="block">
-                Broj pitanja
-                <input
-                  type="number"
-                  min={1}
-                  max={50}
-                  value={questionCount}
-                  onChange={(e) => setQuestionCount(Number(e.target.value))}
-                  className="mt-2 w-full rounded-lg p-3 text-black"
-                />
-              </label>
-
-              <label className="mt-4 block">
-                Vrijeme po pitanju
-                <input
-                  type="number"
-                  min={5}
-                  max={60}
-                  value={timePerQuestion}
-                  onChange={(e) => setTimePerQuestion(Number(e.target.value))}
-                  className="mt-2 w-full rounded-lg p-3 text-black"
-                />
-              </label>
-
-              {isHost ? (
-  <button
-    onClick={() =>
-      socket.emit('start_game', {
-        roomCode: room.code,
-        questionCount,
-        timePerQuestion,
-      })
-    }
-    className="mb-6 w-full rounded-lg bg-purple-600 p-3 font-bold hover:bg-purple-700"
-  >
-    Start Game
-  </button>
-) : (
-  <button
-    onClick={toggleReady}
-    className="mb-6 w-full rounded-lg bg-green-600 p-3 font-bold hover:bg-green-700"
-  >
-    Spreman / Nisam spreman
-  </button>
-)}
-            </>
-          )}
-
-          <div className="space-y-3">
-            {room.players.map((player) => (
-              <div
-                key={player.id}
-                className="flex items-center justify-between rounded-lg bg-zinc-700 p-3"
-              >
-                <div className="flex items-center gap-3">
-                  <img
-                    src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${player.nickname}`}
-                    className="h-10 w-10 rounded-full"
-                    alt=""
-                  />
-
-                  <span>{player.nickname}</span>
-                </div>
-
-                {player.id === room.hostId && (
-                  <span className="rounded bg-yellow-500 px-2 py-1 text-xs font-bold text-black">
-                    HOST
-                  </span>
-                )}
-
-                {player.id !== room.hostId && (
-  <span
-    className={`rounded px-2 py-1 text-xs font-bold ${
-      player.isReady ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
-    }`}
-  >
-    {player.isReady ? 'READY' : 'NOT READY'}
-  </span>
-)}
-
-                {player.id !== room.hostId && (
-  <span
-    className={`rounded px-2 py-1 text-xs font-bold ${
-      player.isReady ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
-    }`}
-  >
-    {player.isReady ? 'READY' : 'NOT READY'}
-  </span>
-)}
-              </div>
-            ))}
-          </div>
-
-{!isHost && (
-  <button
-    onClick={toggleReady}
-    className="mt-6 w-full rounded-lg bg-green-600 p-3 font-bold hover:bg-green-700"
-  >
-    Spreman / Nisam spreman
-  </button>
-)}          
-
-          <div className="mt-6 rounded-xl bg-zinc-700 p-4">
-            <h2 className="mb-3 text-xl font-bold">Lobby Chat</h2>
-
-            <div className="mb-4 max-h-40 space-y-2 overflow-y-auto">
-              {chatMessages.length === 0 ? (
-                <p className="text-sm text-zinc-400">Još nema poruka.</p>
-              ) : (
-                chatMessages.map((chat, index) => (
-                  <div
-                    key={index}
-                    className="rounded-lg bg-zinc-800 p-2 text-sm"
-                  >
-                    <b>{chat.nickname}:</b> {chat.message}
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="flex gap-2">
-              <input
-                className="flex-1 rounded-lg bg-white p-2 text-black"
-                placeholder="Napiši poruku..."
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-              />
-
-              <button
-                onClick={sendMessage}
-                className="rounded-lg bg-blue-600 px-4 font-bold hover:bg-blue-700"
-              >
-                Send
-              </button>
-            </div>
-          </div>
-        </div>
-      </main>
-    );
+    setTimeout(() => {
+      window.location.href = `/room?room=${finalRoomCode}`;
+    }, 200);
   }
 
   return (
@@ -823,10 +127,7 @@ export default function Home() {
         <div className="mb-6 flex items-center justify-between">
           {user ? (
             <>
-              <a
-                href="/profile"
-                className="font-bold text-blue-400 hover:underline"
-              >
+              <a href="/profile" className="font-bold text-blue-400 hover:underline">
                 👤 {user.username}
               </a>
 
@@ -858,39 +159,28 @@ export default function Home() {
           Online Trivia Quiz
         </h1>
 
-        {roomInvites.length > 0 && (
+        {invites.length > 0 && (
           <div className="mb-6 rounded-xl bg-zinc-700 p-4">
-            <h2 className="mb-4 text-xl font-bold">📨 Pozivnice u sobe</h2>
+            <h2 className="mb-3 text-xl font-bold">📩 Pozivnice</h2>
 
-            <div className="space-y-3">
-              {roomInvites.map((invite) => (
-                <div key={invite.id} className="rounded-lg bg-zinc-800 p-4">
-                  <p className="mb-3">
-                    <strong>{invite.fromUser.username}</strong> te poziva u
-                    sobu <strong>{invite.roomCode}</strong>
-                  </p>
+            {invites.map((invite) => (
+              <div
+                key={invite.id}
+                className="mb-3 rounded-lg bg-zinc-800 p-3 last:mb-0"
+              >
+                <p className="mb-3 text-sm">
+                  <b>{invite.fromUser?.username ?? 'Prijatelj'}</b> te pozvao u
+                  sobu <b>{invite.roomCode}</b>
+                </p>
 
-                  <div className="flex gap-2">
-  <button
-  onClick={async () => {
-    await declineRoomInvite(invite.id);
-    window.location.href = `/?room=${invite.roomCode}`;
-  }}
-  className="block w-full rounded-lg bg-blue-600 p-3 text-center font-bold hover:bg-blue-700"
->
-  Pridruži se
-</button>
-
-  <button
-    onClick={() => declineRoomInvite(invite.id)}
-    className="rounded-lg bg-red-600 px-4 font-bold hover:bg-red-700"
-  >
-    ✕
-  </button>
-</div>
-                </div>
-              ))}
-            </div>
+                <button
+                  onClick={() => joinRoom(invite.roomCode)}
+                  className="w-full rounded-lg bg-green-600 p-2 font-bold hover:bg-green-700"
+                >
+                  Pridruži se
+                </button>
+              </div>
+            ))}
           </div>
         )}
 
@@ -922,15 +212,11 @@ export default function Home() {
         />
 
         <button
-          onClick={joinRoom}
+          onClick={() => joinRoom()}
           className="w-full rounded-lg bg-green-600 p-3 font-bold hover:bg-green-700"
         >
           Pridruži se sobi
         </button>
-
-        <p className="mt-3 text-center text-sm text-zinc-400">
-          Ako si otvorio invite link, kod sobe je već upisan.
-        </p>
 
         <a
           href="/daily"

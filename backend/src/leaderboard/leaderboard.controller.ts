@@ -29,18 +29,24 @@ export class LeaderboardController {
     @Body()
     body: {
       nickname: string;
-      score: number;
-      userId?: string;
+  score: number;
+  userId?: string;
+  correctAnswers?: number;
+  totalQuestions?: number;
+  mode?: string;
     },
   ) {
     const { nickname, score, userId } = body;
 
     return this.prisma.gameResult.create({
-      data: {
-        nickname,
-        score,
-        userId,
-      },
-    });
+  data: {
+    nickname: body.nickname,
+    score: body.score,
+    userId: body.userId,
+    correctAnswers: body.correctAnswers ?? body.score,
+    totalQuestions: body.totalQuestions ?? 0,
+    mode: body.mode ?? 'classic',
+  },
+});
   }
 }

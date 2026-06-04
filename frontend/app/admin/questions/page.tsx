@@ -36,6 +36,13 @@ export default function AdminQuestionsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
 
+  const [aiTopic, setAiTopic] = useState('');
+  const [aiCategory, setAiCategory] = useState('Sport');
+  const [aiDifficulty, setAiDifficulty] = useState('easy');
+  const [aiCount, setAiCount] = useState(5);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiMessage, setAiMessage] = useState('');
+
   async function fetchQuestions() {
     const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/questions`);
     const data = await res.json();
@@ -51,10 +58,70 @@ export default function AdminQuestionsPage() {
     }
 
     const parsedUser: User = JSON.parse(savedUser);
-    setUser(parsedUser);
 
+    if (parsedUser.role !== 'ADMIN') {
+      window.location.href = '/';
+      return;
+    }
+
+    setUser(parsedUser);
     fetchQuestions();
   }, []);
+
+  async function generateAiQuestions() {
+    if (!user) {
+      setAiMessage('Moraš biti prijavljen kao admin.');
+      return;
+    }
+
+    if (user.role !== 'ADMIN') {
+      setAiMessage('Nemaš admin prava.');
+      return;
+    }
+
+    if (!aiTopic.trim()) {
+      setAiMessage('Unesi temu za generiranje pitanja.');
+      return;
+    }
+
+    setAiLoading(true);
+    setAiMessage('');
+
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/questions/generate-ai`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: user.id,
+            topic: aiTopic,
+            category: aiCategory,
+            difficulty: aiDifficulty,
+            count: aiCount,
+          }),
+        },
+      );
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        setAiMessage(data.message || 'Greška kod AI generiranja pitanja.');
+        return;
+      }
+
+      setAiMessage(data.message || 'Pitanja su uspješno generirana.');
+      setAiTopic('');
+      fetchQuestions();
+    } catch (error) {
+      console.error(error);
+      setAiMessage('Greška kod spajanja na backend.');
+    } finally {
+      setAiLoading(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -129,6 +196,64 @@ export default function AdminQuestionsPage() {
         </a>
 
         <h1 className="mb-8 text-4xl font-bold">Manage Questions</h1>
+
+        <section className="mb-10 rounded-2xl bg-zinc-800 p-6 shadow-xl">
+          <h2 className="mb-4 text-2xl font-bold">🤖 AI generiranje pitanja</h2>
+
+          <input
+            className="mb-3 w-full rounded-lg bg-white p-3 text-black"
+            placeholder="Tema, npr. Nogomet, Filmovi, Povijest..."
+            value={aiTopic}
+            onChange={(e) => setAiTopic(e.target.value)}
+          />
+
+          <select
+            className="mb-3 w-full rounded-lg bg-white p-3 text-black"
+            value={aiCategory}
+            onChange={(e) => setAiCategory(e.target.value)}
+          >
+            <option value="Sport">Sport</option>
+            <option value="Geografija">Geografija</option>
+            <option value="Matematika">Matematika</option>
+            <option value="Računarstvo">Računarstvo</option>
+            <option value="Povijest">Povijest</option>
+            <option value="Filmovi">Filmovi</option>
+          </select>
+
+          <select
+            className="mb-3 w-full rounded-lg bg-white p-3 text-black"
+            value={aiDifficulty}
+            onChange={(e) => setAiDifficulty(e.target.value)}
+          >
+            <option value="easy">Lako</option>
+            <option value="medium">Srednje</option>
+            <option value="hard">Teško</option>
+          </select>
+
+          <input
+            type="number"
+            min={1}
+            max={20}
+            className="mb-3 w-full rounded-lg bg-white p-3 text-black"
+            value={aiCount}
+            onChange={(e) => setAiCount(Number(e.target.value))}
+          />
+
+          <button
+            type="button"
+            onClick={generateAiQuestions}
+            disabled={aiLoading || !aiTopic.trim()}
+            className="w-full rounded-lg bg-purple-600 p-3 font-bold hover:bg-purple-700 disabled:bg-zinc-600"
+          >
+            {aiLoading ? 'Generiram...' : 'Generiraj AI pitanja'}
+          </button>
+
+          {aiMessage && (
+            <p className="mt-4 rounded-lg bg-zinc-700 p-3 text-center">
+              {aiMessage}
+            </p>
+          )}
+        </section>
 
         <form
           onSubmit={handleSubmit}
