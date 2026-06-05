@@ -4,7 +4,14 @@ import { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
-const socket = io(API_URL || 'http://localhost:3000');
+const socket = io(API_URL || 'http://localhost:3000', {
+  auth: {
+    token:
+      typeof window !== 'undefined'
+        ? localStorage.getItem('token')
+        : null,
+  },
+});
 
 type Player = {
   id: string;
@@ -156,9 +163,7 @@ export default function RoomPage() {
       setUser(userFromStorage);
       setNickname(userFromStorage.username || '');
 
-      socket.emit('join_user_channel', {
-        userId: userFromStorage.id,
-      });
+      socket.emit('join_user_channel');
 
       fetch(`${API_URL}/users/me/friends`, {
         headers: getAuthHeaders(),
@@ -354,7 +359,6 @@ export default function RoomPage() {
         console.log('EMIT CREATE ROOM');
         socket.emit('create_room', {
           nickname: finalNickname,
-          userId: parsedUser?.id,
           questionCount,
           timePerQuestion,
         });
@@ -362,7 +366,6 @@ export default function RoomPage() {
         socket.emit('join_room', {
           roomCode: roomFromUrl.toUpperCase(),
           nickname: finalNickname,
-          userId: parsedUser?.id,
         });
       } else if (savedRoom) {
         const parsedRoom = JSON.parse(savedRoom) as Room;

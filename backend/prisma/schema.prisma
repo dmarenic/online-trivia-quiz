@@ -16,6 +16,9 @@ model GameResult {
   totalQuestions  Int @default(0)
   createdAt DateTime @default(now())
   mode String @default("normal")
+  @@index([userId])
+  @@index([createdAt])
+  @@index([mode])
 
   userId String?
   user   User?   @relation(fields: [userId], references: [id])
@@ -67,6 +70,8 @@ model Achievement {
   description String
   userId      String
   createdAt   DateTime @default(now())
+  @@index([userId])
+  @@unique([userId, title])
 
   user User @relation(fields: [userId], references: [id])
 }
@@ -109,6 +114,8 @@ model DailyChallengeCompletion {
   completedAt DateTime @default(now())
 
   @@unique([userId, challengeId])
+  @@index([userId])
+  @@index([challengeId])
 }
 
 model RoomInvite {
@@ -117,6 +124,9 @@ model RoomInvite {
   fromUserId String
   toUserId   String
   createdAt DateTime @default(now())
+  @@index([toUserId])
+  @@index([fromUserId])
+  @@index([roomCode])
 
   fromUser User @relation("SentRoomInvites", fields: [fromUserId], references: [id])
   toUser   User @relation("ReceivedRoomInvites", fields: [toUserId], references: [id])

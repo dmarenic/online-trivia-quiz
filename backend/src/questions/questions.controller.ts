@@ -12,23 +12,9 @@ import { GoogleGenAI } from '@google/genai';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/admin.guard';
+import { GenerateAiQuestionsDto, QuestionDto } from './dto/question.dto';
+import { Throttle } from '@nestjs/throttler';
 
-type GenerateAiQuestionsBody = {
-  topic: string;
-  category: string;
-  difficulty: string;
-  count: number;
-};
-
-type QuestionBody = {
-  category: string;
-  question: string;
-  optionA: string;
-  optionB: string;
-  optionC: string;
-  optionD: string;
-  correctAnswer: string;
-};
 
 type GeneratedQuestion = {
   category?: string;
@@ -78,8 +64,9 @@ export class QuestionsController {
   }
 
   @UseGuards(JwtAuthGuard, AdminGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('generate-ai')
-  async generateAiQuestions(@Body() body: GenerateAiQuestionsBody) {
+  async generateAiQuestions(@Body() body: GenerateAiQuestionsDto) {
     const count = Math.min(Math.max(Number(body.count) || 5, 1), 20);
 
     try {
@@ -196,7 +183,7 @@ Pravila:
 
   @UseGuards(JwtAuthGuard, AdminGuard)
   @Post()
-  async createQuestion(@Body() body: QuestionBody) {
+  async createQuestion(@Body() body: QuestionDto) {
     return this.prisma.question.create({
       data: {
         category: body.category,
@@ -222,7 +209,7 @@ Pravila:
 
   @UseGuards(JwtAuthGuard, AdminGuard)
   @Patch(':id')
-  async updateQuestion(@Param('id') id: string, @Body() body: QuestionBody) {
+  async updateQuestion(@Param('id') id: string, @Body() body: QuestionDto) {
     return this.prisma.question.update({
       where: {
         id,

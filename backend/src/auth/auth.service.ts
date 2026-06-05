@@ -2,6 +2,8 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
+import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
 
 @Injectable()
 export class AuthService {
@@ -18,7 +20,7 @@ export class AuthService {
     });
   }
 
-  async register(body: any) {
+  async register(body: RegisterDto) {
     const { username, email, password } = body;
 
     if (!username || !email || !password) {
@@ -63,7 +65,7 @@ export class AuthService {
     };
   }
 
-  async login(body: any) {
+  async login(body: LoginDto) {
     const { email, password } = body;
 
     if (!email || !password) {

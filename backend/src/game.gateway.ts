@@ -1,12 +1,13 @@
 import {
+  ConnectedSocket,
+  MessageBody,
+  OnGatewayDisconnect,
+  SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
-  SubscribeMessage,
-  MessageBody,
-  ConnectedSocket,
-  OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from './prisma/prisma.service';
 
 type Player = {
@@ -43,11 +44,17 @@ type Room = {
   timePerQuestion: number;
 };
 
+type SocketUser = {
+  id: string;
+  email?: string;
+  role?: string;
+};
+
 function shuffleArray<T>(array: T[]) {
   return [...array].sort(() => Math.random() - 0.5);
 }
 
-function toPublicQuestion(question: any) {
+function toPublicQuestion(question: QuizQuestion) {
   return {
     id: question.id,
     category: question.category,
@@ -63,13 +70,50 @@ function toPublicQuestion(question: any) {
   },
 })
 export class GameGateway implements OnGatewayDisconnect {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private jwtService: JwtService,
+  ) {}
 
   @WebSocketServer()
   server!: Server;
 
   private rooms: Map<string, Room> = new Map();
   private timers: Map<string, NodeJS.Timeout> = new Map();
+
+  private getUserFromSocket(client: Socket): SocketUser | null {
+    const token = client.handshake.auth?.token;
+
+    if (!token) {
+      return null;
+    }
+
+    try {
+      const payload = this.jwtService.verify(token);
+
+      return {
+        id: payload.sub,
+        email: payload.email,
+        role: payload.role,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private isRoomHost(room: Room, client: Socket): boolean {
+    const authUser = this.getUserFromSocket(client);
+
+    if (room.hostUserId && authUser?.id === room.hostUserId) {
+      return true;
+    }
+
+    if (room.hostId === client.id) {
+      return true;
+    }
+
+    return false;
+  }
 
   private calculatePoints(isCorrect: boolean, responseTimeMs: number) {
     if (!isCorrect) return 0;
@@ -108,6 +152,13 @@ export class GameGateway implements OnGatewayDisconnect {
   }
 
   private startQuestionTimer(room: Room) {
+    const oldTimer = this.timers.get(room.code);
+
+    if (oldTimer) {
+      clearInterval(oldTimer);
+      this.timers.delete(room.code);
+    }
+
     let timeLeft = room.timePerQuestion;
 
     room.acceptingAnswers = true;
@@ -314,26 +365,36 @@ export class GameGateway implements OnGatewayDisconnect {
   }
 
   @SubscribeMessage('join_user_channel')
-  joinUserChannel(
-    @MessageBody() data: { userId: string },
-    @ConnectedSocket() client: Socket,
-  ) {
-    client.join(`user_${data.userId}`);
+  joinUserChannel(@ConnectedSocket() client: Socket) {
+    const authUser = this.getUserFromSocket(client);
+
+    if (!authUser) {
+      client.emit('error_message', 'Nisi prijavljen.');
+      return;
+    }
+
+    client.join(`user_${authUser.id}`);
   }
 
   @SubscribeMessage('send_room_invite')
   async sendRoomInvite(
     @MessageBody()
     data: {
-      fromUserId: string;
-      fromUsername: string;
       toUserId: string;
       roomCode: string;
     },
+    @ConnectedSocket() client: Socket,
   ) {
+    const authUser = this.getUserFromSocket(client);
+
+    if (!authUser) {
+      client.emit('error_message', 'Nisi prijavljen.');
+      return;
+    }
+
     const invite = await this.prisma.roomInvite.create({
       data: {
-        fromUserId: data.fromUserId,
+        fromUserId: authUser.id,
         toUserId: data.toUserId,
         roomCode: data.roomCode,
       },
@@ -355,13 +416,15 @@ export class GameGateway implements OnGatewayDisconnect {
   createRoom(
     @MessageBody()
     data: {
-  nickname: string;
-  userId?: string;
-  questionCount?: number;
-  timePerQuestion?: number;
-},
+      nickname: string;
+      questionCount?: number;
+      timePerQuestion?: number;
+    },
     @ConnectedSocket() client: Socket,
   ) {
+    const authUser = this.getUserFromSocket(client);
+    const userId = authUser?.id;
+
     const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
     const questionCount = Number(data.questionCount) || 10;
@@ -373,7 +436,7 @@ export class GameGateway implements OnGatewayDisconnect {
       score: 0,
       correctAnswers: 0,
       answeredQuestions: [],
-      userId: data.userId,
+      userId,
       isReady: true,
       connected: true,
     };
@@ -381,7 +444,7 @@ export class GameGateway implements OnGatewayDisconnect {
     const room: Room = {
       code: roomCode,
       hostId: client.id,
-      hostUserId: data.userId,
+      hostUserId: userId,
       players: [player],
       currentQuestionIndex: 0,
       started: false,
@@ -401,9 +464,16 @@ export class GameGateway implements OnGatewayDisconnect {
 
   @SubscribeMessage('join_room')
   joinRoom(
-    @MessageBody() data: { roomCode: string; nickname: string; userId?: string },
+    @MessageBody()
+    data: {
+      roomCode: string;
+      nickname: string;
+    },
     @ConnectedSocket() client: Socket,
   ) {
+    const authUser = this.getUserFromSocket(client);
+    const userId = authUser?.id;
+
     const room = this.rooms.get(data.roomCode);
 
     if (!room) {
@@ -417,31 +487,27 @@ export class GameGateway implements OnGatewayDisconnect {
     }
 
     const reconnectingPlayer = room.players.find((player) => {
-  if (data.userId && player.userId) {
-    return player.userId === data.userId;
-  }
+      if (userId && player.userId) {
+        return player.userId === userId;
+      }
 
-  return player.nickname === data.nickname;
-});
+      return player.nickname === data.nickname;
+    });
 
-if (reconnectingPlayer) {
-  reconnectingPlayer.id = client.id;
-  reconnectingPlayer.connected = true;
-  client.join(room.code);
+    if (reconnectingPlayer) {
+      reconnectingPlayer.id = client.id;
+      reconnectingPlayer.connected = true;
+      client.join(room.code);
 
-  if (room.hostUserId && data.userId && room.hostUserId === data.userId) {
-    room.hostId = client.id;
-    reconnectingPlayer.isReady = true;
-  }
+      if (room.hostUserId && userId && room.hostUserId === userId) {
+        room.hostId = client.id;
+        reconnectingPlayer.isReady = true;
+      }
 
-  client.emit('room_updated', room);
-  this.server.to(room.code).emit('room_updated', room);
-  return;
-}
-
-if (room.players.length === 0) {
-  room.hostId = client.id;
-}
+      client.emit('room_updated', room);
+      this.server.to(room.code).emit('room_updated', room);
+      return;
+    }
 
     const existingPlayer = room.players.find(
       (player) => player.id === client.id,
@@ -458,8 +524,8 @@ if (room.players.length === 0) {
       score: 0,
       correctAnswers: 0,
       answeredQuestions: [],
-      userId: data.userId,
-      isReady: room.players.length === 0,
+      userId,
+      isReady: false,
       connected: true,
     };
 
@@ -479,13 +545,16 @@ if (room.players.length === 0) {
 
     if (!room) return;
 
-    if (room.hostId !== client.id) {
+    if (!this.isRoomHost(room, client)) {
       client.emit('error_message', 'Samo host može mijenjati kategoriju.');
       return;
     }
 
     if (room.started) {
-      client.emit('error_message', 'Kategorija se ne može mijenjati tijekom igre.');
+      client.emit(
+        'error_message',
+        'Kategorija se ne može mijenjati tijekom igre.',
+      );
       return;
     }
 
@@ -511,7 +580,7 @@ if (room.players.length === 0) {
 
     if (!player) return;
 
-    if (player.id === room.hostId) {
+    if (this.isRoomHost(room, client)) {
       player.isReady = true;
     } else {
       player.isReady = !player.isReady;
@@ -534,13 +603,13 @@ if (room.players.length === 0) {
 
     if (!room) return;
 
-    if (room.hostId !== client.id) {
+    if (!this.isRoomHost(room, client)) {
       client.emit('error_message', 'Samo host može pokrenuti igru.');
       return;
     }
 
     const allReady = room.players.every(
-      (player) => player.id === room.hostId || player.isReady,
+      (player) => this.isRoomHost(room, client) || player.isReady,
     );
 
     if (!allReady) {
@@ -574,19 +643,23 @@ if (room.players.length === 0) {
       score: 0,
       correctAnswers: 0,
       answeredQuestions: [],
-      isReady: player.id === room.hostId ? true : player.isReady,
+      isReady:
+        player.id === room.hostId ||
+        (!!room.hostUserId && player.userId === room.hostUserId)
+          ? true
+          : player.isReady,
     }));
 
-    const nextQuestion = room.questions[room.currentQuestionIndex];
+    const firstQuestion = room.questions[0];
 
-this.server.to(room.code).emit('question_started', {
-  question: toPublicQuestion(nextQuestion),
-  questionNumber: room.currentQuestionIndex + 1,
-  totalQuestions: room.questions.length,
-  answeredCount: 0,
-  totalPlayers: room.players.length,
-  timePerQuestion: room.timePerQuestion,
-});
+    this.server.to(room.code).emit('game_started', {
+      question: toPublicQuestion(firstQuestion),
+      questionNumber: 1,
+      totalQuestions: room.questions.length,
+      answeredCount: 0,
+      totalPlayers: room.players.length,
+      timePerQuestion: room.timePerQuestion,
+    });
 
     this.startQuestionTimer(room);
   }
@@ -651,7 +724,7 @@ this.server.to(room.code).emit('question_started', {
 
     if (!room) return;
 
-    if (room.hostId !== client.id) {
+    if (!this.isRoomHost(room, client)) {
       client.emit('error_message', 'Samo host može prebaciti pitanje.');
       return;
     }
@@ -671,7 +744,9 @@ this.server.to(room.code).emit('question_started', {
 
       room.players = room.players.map((player) => ({
         ...player,
-        isReady: player.id === room.hostId,
+        isReady:
+          player.id === room.hostId ||
+          (!!room.hostUserId && player.userId === room.hostUserId),
       }));
 
       this.server.to(room.code).emit('game_finished', {
@@ -693,14 +768,14 @@ this.server.to(room.code).emit('question_started', {
 
     const nextQuestion = room.questions[room.currentQuestionIndex];
 
-this.server.to(room.code).emit('question_started', {
-  question: toPublicQuestion(nextQuestion),
-  questionNumber: room.currentQuestionIndex + 1,
-  totalQuestions: room.questions.length,
-  answeredCount: 0,
-  totalPlayers: room.players.length,
-  timePerQuestion: room.timePerQuestion,
-});
+    this.server.to(room.code).emit('question_started', {
+      question: toPublicQuestion(nextQuestion),
+      questionNumber: room.currentQuestionIndex + 1,
+      totalQuestions: room.questions.length,
+      answeredCount: 0,
+      totalPlayers: room.players.length,
+      timePerQuestion: room.timePerQuestion,
+    });
 
     this.startQuestionTimer(room);
   }
@@ -713,48 +788,53 @@ this.server.to(room.code).emit('question_started', {
       nickname: string;
       message: string;
     },
+    @ConnectedSocket() client: Socket,
   ) {
     const room = this.rooms.get(data.roomCode);
 
     if (!room) return;
 
+    const player = room.players.find((p) => p.id === client.id);
+
+    if (!player) return;
+
     this.server.to(room.code).emit('new_message', {
-      nickname: data.nickname,
+      nickname: player.nickname || data.nickname,
       message: data.message,
       createdAt: new Date().toISOString(),
     });
   }
 
   handleDisconnect(client: Socket) {
-  for (const [roomCode, room] of this.rooms.entries()) {
-    const player = room.players.find((p) => p.id === client.id);
+    for (const [roomCode, room] of this.rooms.entries()) {
+      const player = room.players.find((p) => p.id === client.id);
 
-    if (!player) continue;
+      if (!player) continue;
 
-    player.connected = false;
+      player.connected = false;
 
-    this.server.to(roomCode).emit('room_updated', room);
+      this.server.to(roomCode).emit('room_updated', room);
 
-    setTimeout(() => {
-      const latestRoom = this.rooms.get(roomCode);
+      setTimeout(() => {
+        const latestRoom = this.rooms.get(roomCode);
 
-      if (!latestRoom) return;
+        if (!latestRoom) return;
 
-      const hasConnectedPlayers = latestRoom.players.some(
-        (p) => p.connected !== false,
-      );
+        const hasConnectedPlayers = latestRoom.players.some(
+          (p) => p.connected !== false,
+        );
 
-      if (hasConnectedPlayers) return;
+        if (hasConnectedPlayers) return;
 
-      const timer = this.timers.get(roomCode);
+        const timer = this.timers.get(roomCode);
 
-      if (timer) {
-        clearInterval(timer);
-        this.timers.delete(roomCode);
-      }
+        if (timer) {
+          clearInterval(timer);
+          this.timers.delete(roomCode);
+        }
 
-      this.rooms.delete(roomCode);
-    }, 30000);
+        this.rooms.delete(roomCode);
+      }, 30000);
+    }
   }
-}
 }

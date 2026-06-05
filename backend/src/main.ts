@@ -1,9 +1,13 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { ValidationPipe } from '@nestjs/common';
+import helmet from 'helmet';
+import { validateEnv } from './config/validate-env';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-
+  validateEnv();
+  app.use(helmet());
   app.enableCors({
   origin: [
     'http://localhost:3000',
@@ -11,6 +15,13 @@ async function bootstrap() {
   ],
   credentials: true,
 });
+  app.useGlobalPipes(
+  new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+  }),
+);
 
   await app.listen(process.env.PORT ?? 3000);
 }

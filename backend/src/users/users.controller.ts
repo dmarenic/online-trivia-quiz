@@ -13,6 +13,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { AddFriendDto, InviteRoomDto, UpdateAvatarDto } from './dto/users.dto';
 
 @Controller('users')
 export class UsersController {
@@ -126,9 +127,7 @@ export class UsersController {
   async updateAvatar(
     @CurrentUser() user: any,
     @Body()
-    body: {
-      avatar: string;
-    },
+    body: UpdateAvatarDto,
   ) {
     return this.prisma.user.update({
       where: { id: user.id },
@@ -154,10 +153,7 @@ export class UsersController {
   async inviteToRoom(
     @CurrentUser() user: any,
     @Body()
-    body: {
-      toUserId: string;
-      roomCode: string;
-    },
+    body: InviteRoomDto,
   ) {
     if (body.toUserId === user.id) {
       throw new ForbiddenException('Ne možeš poslati pozivnicu sam sebi.');
@@ -213,9 +209,7 @@ export class UsersController {
   async addFriend(
     @CurrentUser() user: any,
     @Body()
-    body: {
-      username: string;
-    },
+    body: AddFriendDto,
   ) {
     const friend = await this.prisma.user.findUnique({
       where: {

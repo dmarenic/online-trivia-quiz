@@ -20,13 +20,23 @@ export default function FriendsPage() {
   const [friends, setFriends] = useState<Friend[]>([]);
   const [message, setMessage] = useState("");
 
-  async function loadFriends(userId: string) {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/users/${userId}/friends`
-    );
+  async function loadFriends() {
+  const token = localStorage.getItem("token");
+
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/me/friends`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
 
     const data = await res.json();
-    setFriends(data);
+
+if (Array.isArray(data)) {
+  setFriends(data);
+} else {
+  console.error("Friends API returned:", data);
+  setFriends([]);
+}
   }
 
   useEffect(() => {
@@ -39,7 +49,7 @@ export default function FriendsPage() {
 
     const parsedUser = JSON.parse(savedUser);
     setUser(parsedUser);
-    loadFriends(parsedUser.id);
+    loadFriends();
   }, []);
 
   async function addFriend(e: React.FormEvent) {
@@ -48,12 +58,13 @@ export default function FriendsPage() {
     if (!user || !username.trim()) return;
 
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/users/${user.id}/friends`,
+      `${process.env.NEXT_PUBLIC_API_URL}/users/me/friends`,
       {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-        },
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${localStorage.getItem("token")}`,
+},
         body: JSON.stringify({
           username,
         }),
@@ -69,7 +80,7 @@ export default function FriendsPage() {
 
     setUsername("");
     setMessage("Prijatelj dodan.");
-    loadFriends(user.id);
+    loadFriends();
   }
 
   function getFriendName(friend: Friend) {
@@ -110,7 +121,7 @@ export default function FriendsPage() {
 
         <h2 className="mb-4 text-2xl font-bold">Moji prijatelji</h2>
 
-        {friends.length === 0 ? (
+        {!Array.isArray(friends) || friends.length === 0 ? (
           <p className="text-zinc-400">Još nemaš prijatelja.</p>
         ) : (
           <div className="space-y-3">

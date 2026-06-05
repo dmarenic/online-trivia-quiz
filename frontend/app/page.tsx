@@ -53,9 +53,7 @@ export default function Home() {
     });
 
     socket.on('connect', () => {
-      socket.emit('join_user_channel', {
-        userId: parsedUser.id,
-      });
+      socket.emit('join_user_channel');
     });
 
     socket.on('room_invite_received', (invite: Invite) => {

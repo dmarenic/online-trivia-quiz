@@ -9,6 +9,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { SubmitDailyDto } from './dto/submit-daily.dto';
 
 const DAILY_CATEGORIES = ['Geografija', 'Matematika', 'Računarstvo', 'Sport'];
 
@@ -122,6 +123,15 @@ export class DailyChallengeController {
         category: challenge.category,
       },
       take: challenge.questionCount,
+      select: {
+        id: true,
+        category: true,
+        question: true,
+        optionA: true,
+        optionB: true,
+        optionC: true,
+        optionD: true,
+      },
     });
 
     return questions.map((question) => ({
@@ -141,11 +151,7 @@ export class DailyChallengeController {
   @Post('submit')
   async submitDailyResult(
     @CurrentUser() user: any,
-    @Body()
-    body: {
-      score: number;
-      nickname: string;
-    },
+    @Body() body: SubmitDailyDto,
   ) {
     const userId = user.id;
     const today = new Date().toISOString().split('T')[0];
@@ -160,24 +166,6 @@ export class DailyChallengeController {
       return {
         success: false,
         message: 'Daily challenge ne postoji.',
-      };
-    }
-
-    await this.prisma.gameResult.create({
-      data: {
-        nickname: body.nickname,
-        score: body.score,
-        userId,
-        mode: 'daily',
-      },
-    });
-
-    if (body.score < challenge.targetScore) {
-      return {
-        success: true,
-        completed: false,
-        unlockedAchievements: [],
-        message: 'Nisi ispunio daily challenge.',
       };
     }
 
@@ -196,6 +184,52 @@ export class DailyChallengeController {
         rewardClaimed: false,
         unlockedAchievements: [],
         message: 'Daily challenge je već završen danas.',
+      };
+    }
+
+    const questionIds = body.answers.map((answer) => answer.questionId);
+
+    const questions = await this.prisma.question.findMany({
+      where: {
+        id: {
+          in: questionIds,
+        },
+      },
+    });
+
+    let correctAnswers = 0;
+
+    for (const answer of body.answers) {
+      const question = questions.find((q) => q.id === answer.questionId);
+
+      if (question && question.correctAnswer === answer.answer) {
+        correctAnswers++;
+      }
+    }
+
+    const totalQuestions = questions.length;
+    const score = correctAnswers * 1000;
+
+    await this.prisma.gameResult.create({
+      data: {
+        nickname: body.nickname,
+        score,
+        correctAnswers,
+        totalQuestions,
+        userId,
+        mode: 'daily',
+      },
+    });
+
+    if (score < challenge.targetScore) {
+      return {
+        success: true,
+        completed: false,
+        score,
+        correctAnswers,
+        totalQuestions,
+        unlockedAchievements: [],
+        message: 'Nisi ispunio daily challenge.',
       };
     }
 
@@ -269,14 +303,13 @@ export class DailyChallengeController {
       unlockedAchievements.push('First Daily');
     }
 
-    if (body.score >= 5000) {
-      const dailyMasterAchievement =
-        await this.prisma.achievement.findFirst({
-          where: {
-            userId,
-            title: 'Daily Master',
-          },
-        });
+    if (score >= 5000) {
+      const dailyMasterAchievement = await this.prisma.achievement.findFirst({
+        where: {
+          userId,
+          title: 'Daily Master',
+        },
+      });
 
       if (!dailyMasterAchievement) {
         await this.prisma.achievement.create({
@@ -316,6 +349,9 @@ export class DailyChallengeController {
       success: true,
       completed: true,
       rewardClaimed: true,
+      score,
+      correctAnswers,
+      totalQuestions,
       rewardXp: challenge.rewardXp,
       totalXp: updatedUser.xp,
       level: updatedUser.level,

@@ -1,0 +1,44 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: trivia-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: trivia
+      POSTGRES_PASSWORD: trivia_password
+      POSTGRES_DB: trivia_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - trivia_postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./backend
+    container_name: trivia-backend
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: postgresql://trivia:trivia_password@postgres:5432/trivia_db
+      JWT_SECRET: change_me_in_production
+      JWT_EXPIRES_IN: 7d
+      FRONTEND_URL: http://localhost:3001
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    ports:
+      - "3000:3000"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3000
+    container_name: trivia-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3001:3000"
+
+volumes:
+  trivia_postgres_data:

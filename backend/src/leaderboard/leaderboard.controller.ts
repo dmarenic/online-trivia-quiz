@@ -1,5 +1,8 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { SaveResultDto } from './dto/save-result.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentUser } from '../auth/current-user.decorator';
 
 @Controller('leaderboard')
 export class LeaderboardController {
@@ -24,29 +27,21 @@ export class LeaderboardController {
     });
   }
 
+  @UseGuards(JwtAuthGuard)
   @Post()
   async saveResult(
-    @Body()
-    body: {
-      nickname: string;
-  score: number;
-  userId?: string;
-  correctAnswers?: number;
-  totalQuestions?: number;
-  mode?: string;
-    },
+    @CurrentUser() user: any,
+    @Body() body: SaveResultDto,
   ) {
-    const { nickname, score, userId } = body;
-
     return this.prisma.gameResult.create({
-  data: {
-    nickname: body.nickname,
-    score: body.score,
-    userId: body.userId,
-    correctAnswers: body.correctAnswers ?? body.score,
-    totalQuestions: body.totalQuestions ?? 0,
-    mode: body.mode ?? 'classic',
-  },
-});
+      data: {
+        nickname: body.nickname,
+        score: body.score,
+        userId: user.id,
+        correctAnswers: body.correctAnswers ?? 0,
+        totalQuestions: body.totalQuestions ?? 0,
+        mode: body.mode ?? 'classic',
+      },
+    });
   }
 }
