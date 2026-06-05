@@ -169,25 +169,13 @@ export class DailyChallengeController {
       };
     }
 
-    const alreadyCompleted =
-      await this.prisma.dailyChallengeCompletion.findFirst({
-        where: {
-          userId,
-          challengeId: challenge.id,
-        },
-      });
+    const uniqueAnswers = Array.from(
+      new Map(
+        body.answers.map((answer) => [answer.questionId, answer]),
+      ).values(),
+    );
 
-    if (alreadyCompleted) {
-      return {
-        success: true,
-        completed: true,
-        rewardClaimed: false,
-        unlockedAchievements: [],
-        message: 'Daily challenge je već završen danas.',
-      };
-    }
-
-    const questionIds = body.answers.map((answer) => answer.questionId);
+    const questionIds = uniqueAnswers.map((answer) => answer.questionId);
 
     const questions = await this.prisma.question.findMany({
       where: {
@@ -199,7 +187,7 @@ export class DailyChallengeController {
 
     let correctAnswers = 0;
 
-    for (const answer of body.answers) {
+    for (const answer of uniqueAnswers) {
       const question = questions.find((q) => q.id === answer.questionId);
 
       if (question && question.correctAnswer === answer.answer) {
@@ -210,154 +198,197 @@ export class DailyChallengeController {
     const totalQuestions = questions.length;
     const score = correctAnswers * 1000;
 
-    await this.prisma.gameResult.create({
-      data: {
-        nickname: body.nickname,
-        score,
-        correctAnswers,
-        totalQuestions,
-        userId,
-        mode: 'daily',
-      },
-    });
+    const result = await this.prisma.$transaction(async (tx) => {
+      const alreadyCompleted = await tx.dailyChallengeCompletion.findFirst({
+        where: {
+          userId,
+          challengeId: challenge.id,
+        },
+      });
 
-    if (score < challenge.targetScore) {
-      return {
-        success: true,
-        completed: false,
-        score,
-        correctAnswers,
-        totalQuestions,
-        unlockedAchievements: [],
-        message: 'Nisi ispunio daily challenge.',
-      };
-    }
+      if (alreadyCompleted) {
+        return {
+          success: true,
+          completed: true,
+          rewardClaimed: false,
+          score,
+          correctAnswers,
+          totalQuestions,
+          rewardXp: 0,
+          totalXp: null,
+          level: null,
+          dailyStreak: null,
+          unlockedAchievements: [],
+          message: 'Daily challenge je već završen danas.',
+        };
+      }
 
-    await this.prisma.dailyChallengeCompletion.create({
-      data: {
-        userId,
-        challengeId: challenge.id,
-      },
-    });
+      await tx.gameResult.create({
+        data: {
+          nickname: body.nickname,
+          score,
+          correctAnswers,
+          totalQuestions,
+          userId,
+          mode: 'daily',
+        },
+      });
 
-    const currentUser = await this.prisma.user.findUnique({
-      where: {
-        id: userId,
-      },
-    });
+      if (score < challenge.targetScore) {
+        return {
+          success: true,
+          completed: false,
+          rewardClaimed: false,
+          score,
+          correctAnswers,
+          totalQuestions,
+          rewardXp: 0,
+          totalXp: null,
+          level: null,
+          dailyStreak: null,
+          unlockedAchievements: [],
+          message: 'Nisi ispunio daily challenge.',
+        };
+      }
 
-    if (!currentUser) {
-      return {
-        success: false,
-        message: 'Korisnik ne postoji.',
-      };
-    }
-
-    const newXp = currentUser.xp + challenge.rewardXp;
-    const newLevel = Math.floor(newXp / 1000) + 1;
-
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayString = yesterday.toISOString().split('T')[0];
-
-    let newStreak = 1;
-
-    if (currentUser.lastDailyDate === yesterdayString) {
-      newStreak = currentUser.dailyStreak + 1;
-    }
-
-    if (currentUser.lastDailyDate === today) {
-      newStreak = currentUser.dailyStreak;
-    }
-
-    const updatedUser = await this.prisma.user.update({
-      where: {
-        id: userId,
-      },
-      data: {
-        xp: newXp,
-        level: newLevel,
-        dailyStreak: newStreak,
-        lastDailyDate: today,
-      },
-    });
-
-    const unlockedAchievements: string[] = [];
-
-    const firstDailyAchievement = await this.prisma.achievement.findFirst({
-      where: {
-        userId,
-        title: 'First Daily',
-      },
-    });
-
-    if (!firstDailyAchievement) {
-      await this.prisma.achievement.create({
+      await tx.dailyChallengeCompletion.create({
         data: {
           userId,
-          title: 'First Daily',
-          description: 'Završi svoj prvi Daily Challenge.',
+          challengeId: challenge.id,
         },
       });
 
-      unlockedAchievements.push('First Daily');
-    }
+      const currentUser = await tx.user.findUnique({
+        where: {
+          id: userId,
+        },
+      });
 
-    if (score >= 5000) {
-      const dailyMasterAchievement = await this.prisma.achievement.findFirst({
+      if (!currentUser) {
+        return {
+          success: false,
+          completed: false,
+          rewardClaimed: false,
+          score,
+          correctAnswers,
+          totalQuestions,
+          rewardXp: 0,
+          totalXp: null,
+          level: null,
+          dailyStreak: null,
+          unlockedAchievements: [],
+          message: 'Korisnik ne postoji.',
+        };
+      }
+
+      const newXp = currentUser.xp + challenge.rewardXp;
+      const newLevel = Math.floor(newXp / 1000) + 1;
+
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayString = yesterday.toISOString().split('T')[0];
+
+      let newStreak = 1;
+
+      if (currentUser.lastDailyDate === yesterdayString) {
+        newStreak = currentUser.dailyStreak + 1;
+      }
+
+      if (currentUser.lastDailyDate === today) {
+        newStreak = currentUser.dailyStreak;
+      }
+
+      const updatedUser = await tx.user.update({
+        where: {
+          id: userId,
+        },
+        data: {
+          xp: newXp,
+          level: newLevel,
+          dailyStreak: newStreak,
+          lastDailyDate: today,
+        },
+      });
+
+      const unlockedAchievements: string[] = [];
+
+      const firstDailyAchievement = await tx.achievement.findFirst({
         where: {
           userId,
-          title: 'Daily Master',
+          title: 'First Daily',
         },
       });
 
-      if (!dailyMasterAchievement) {
-        await this.prisma.achievement.create({
+      if (!firstDailyAchievement) {
+        await tx.achievement.create({
           data: {
+            userId,
+            title: 'First Daily',
+            description: 'Završi svoj prvi Daily Challenge.',
+          },
+        });
+
+        unlockedAchievements.push('First Daily');
+      }
+
+      if (score >= 5000) {
+        const dailyMasterAchievement = await tx.achievement.findFirst({
+          where: {
             userId,
             title: 'Daily Master',
-            description: 'Osvoji maksimalan rezultat na Daily Challengeu.',
           },
         });
 
-        unlockedAchievements.push('Daily Master');
+        if (!dailyMasterAchievement) {
+          await tx.achievement.create({
+            data: {
+              userId,
+              title: 'Daily Master',
+              description: 'Osvoji maksimalan rezultat na Daily Challengeu.',
+            },
+          });
+
+          unlockedAchievements.push('Daily Master');
+        }
       }
-    }
 
-    if (newStreak >= 3) {
-      const streakAchievement = await this.prisma.achievement.findFirst({
-        where: {
-          userId,
-          title: '3 Day Streak',
-        },
-      });
-
-      if (!streakAchievement) {
-        await this.prisma.achievement.create({
-          data: {
+      if (newStreak >= 3) {
+        const streakAchievement = await tx.achievement.findFirst({
+          where: {
             userId,
             title: '3 Day Streak',
-            description: 'Završi Daily Challenge 3 dana zaredom.',
           },
         });
 
-        unlockedAchievements.push('3 Day Streak');
-      }
-    }
+        if (!streakAchievement) {
+          await tx.achievement.create({
+            data: {
+              userId,
+              title: '3 Day Streak',
+              description: 'Završi Daily Challenge 3 dana zaredom.',
+            },
+          });
 
-    return {
-      success: true,
-      completed: true,
-      rewardClaimed: true,
-      score,
-      correctAnswers,
-      totalQuestions,
-      rewardXp: challenge.rewardXp,
-      totalXp: updatedUser.xp,
-      level: updatedUser.level,
-      dailyStreak: updatedUser.dailyStreak,
-      unlockedAchievements,
-      message: `Daily challenge završen! +${challenge.rewardXp} XP`,
-    };
+          unlockedAchievements.push('3 Day Streak');
+        }
+      }
+
+      return {
+        success: true,
+        completed: true,
+        rewardClaimed: true,
+        score,
+        correctAnswers,
+        totalQuestions,
+        rewardXp: challenge.rewardXp,
+        totalXp: updatedUser.xp,
+        level: updatedUser.level,
+        dailyStreak: updatedUser.dailyStreak,
+        unlockedAchievements,
+        message: `Daily challenge završen! +${challenge.rewardXp} XP`,
+      };
+    });
+
+    return result;
   }
 }

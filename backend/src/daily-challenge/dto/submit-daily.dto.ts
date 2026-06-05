@@ -1,4 +1,6 @@
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsString,
   MaxLength,
@@ -10,6 +12,7 @@ import { Type } from 'class-transformer';
 class DailyAnswerDto {
   @IsString()
   @MinLength(1)
+  @MaxLength(100)
   questionId: string;
 
   @IsString()
@@ -25,6 +28,8 @@ export class SubmitDailyDto {
   nickname: string;
 
   @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(50)
   @ValidateNested({ each: true })
   @Type(() => DailyAnswerDto)
   answers: DailyAnswerDto[];

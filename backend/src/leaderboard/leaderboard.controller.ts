@@ -20,7 +20,7 @@ export class LeaderboardController {
           select: {
             id: true,
             username: true,
-            email: true,
+            avatar: true,
           },
         },
       },
@@ -33,14 +33,43 @@ export class LeaderboardController {
     @CurrentUser() user: any,
     @Body() body: SaveResultDto,
   ) {
+    const uniqueAnswers = Array.from(
+  new Map(
+    body.answers.map((answer) => [answer.questionId, answer]),
+  ).values(),
+);
+
+const questionIds = uniqueAnswers.map((answer) => answer.questionId);
+
+    const questions = await this.prisma.question.findMany({
+      where: {
+        id: {
+          in: questionIds,
+        },
+      },
+    });
+
+    let correctAnswers = 0;
+
+    for (const answer of uniqueAnswers) {
+      const question = questions.find((q) => q.id === answer.questionId);
+
+      if (question && question.correctAnswer === answer.answer) {
+        correctAnswers++;
+      }
+    }
+
+    const totalQuestions = questions.length;
+    const score = correctAnswers * 1000;
+
     return this.prisma.gameResult.create({
       data: {
         nickname: body.nickname,
-        score: body.score,
+        score,
         userId: user.id,
-        correctAnswers: body.correctAnswers ?? 0,
-        totalQuestions: body.totalQuestions ?? 0,
-        mode: body.mode ?? 'classic',
+        correctAnswers,
+        totalQuestions,
+        mode: body.mode || 'classic',
       },
     });
   }

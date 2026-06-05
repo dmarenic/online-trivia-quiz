@@ -10,11 +10,12 @@ export class UpdateAvatarDto {
 export class InviteRoomDto {
   @IsString()
   @MinLength(1)
+  @MaxLength(50)
   toUserId: string;
 
   @IsString()
-  @MinLength(4)
-  @MaxLength(10)
+  @MinLength(3)
+  @MaxLength(20)
   roomCode: string;
 }
 

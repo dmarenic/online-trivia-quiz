@@ -3,25 +3,28 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
 import { validateEnv } from './config/validate-env';
+import compression from 'compression';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
   validateEnv();
+
+  const app = await NestFactory.create(AppModule);
+
   app.use(helmet());
+  app.use(compression());
+
   app.enableCors({
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:3001',
-  ],
-  credentials: true,
-});
+    origin: process.env.FRONTEND_URL,
+    credentials: true,
+  });
+
   app.useGlobalPipes(
-  new ValidationPipe({
-    whitelist: true,
-    forbidNonWhitelisted: true,
-    transform: true,
-  }),
-);
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
 
   await app.listen(process.env.PORT ?? 3000);
 }

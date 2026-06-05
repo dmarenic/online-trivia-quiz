@@ -65,7 +65,7 @@ function toPublicQuestion(question: QuizQuestion) {
 
 @WebSocketGateway({
   cors: {
-    origin: ['http://localhost:3000', 'http://localhost:3001'],
+    origin: process.env.FRONTEND_URL,
     credentials: true,
   },
 })
@@ -80,6 +80,92 @@ export class GameGateway implements OnGatewayDisconnect {
 
   private rooms: Map<string, Room> = new Map();
   private timers: Map<string, NodeJS.Timeout> = new Map();
+  private readonly messageTimestamps = new Map<string, number[]>();
+
+  private isValidRoomCode(roomCode: unknown): roomCode is string {
+    return (
+      typeof roomCode === 'string' &&
+      roomCode.trim().length >= 3 &&
+      roomCode.trim().length <= 20
+    );
+  }
+
+  private isValidNickname(nickname: unknown): nickname is string {
+    return (
+      typeof nickname === 'string' &&
+      nickname.trim().length >= 1 &&
+      nickname.trim().length <= 30
+    );
+  }
+
+  private isValidChatMessage(message: unknown): message is string {
+    return (
+      typeof message === 'string' &&
+      message.trim().length >= 1 &&
+      message.trim().length <= 300
+    );
+  }
+
+  private isValidCategory(category: unknown): category is string {
+    return (
+      typeof category === 'string' &&
+      category.trim().length >= 1 &&
+      category.trim().length <= 50
+    );
+  }
+
+  private isValidAnswer(answer: unknown): answer is string {
+    return (
+      typeof answer === 'string' &&
+      answer.trim().length >= 1 &&
+      answer.trim().length <= 300
+    );
+  }
+
+  private normalizeRoomCode(roomCode: string) {
+    return roomCode.trim().toUpperCase();
+  }
+
+  private sanitizeText(value: string) {
+    return value.trim();
+  }
+
+  private getSafeQuestionCount(value: unknown, fallback = 10) {
+    const count = Number(value);
+
+    if (!Number.isInteger(count)) return fallback;
+    if (count < 1) return fallback;
+    if (count > 50) return 50;
+
+    return count;
+  }
+
+  private getSafeTimePerQuestion(value: unknown, fallback = 15) {
+    const time = Number(value);
+
+    if (!Number.isInteger(time)) return fallback;
+    if (time < 5) return fallback;
+    if (time > 120) return 120;
+
+    return time;
+  }
+
+  private isRateLimited(socketId: string, limit = 10, windowMs = 10000) {
+    const now = Date.now();
+    const timestamps = this.messageTimestamps.get(socketId) ?? [];
+
+    const recent = timestamps.filter((timestamp) => now - timestamp < windowMs);
+
+    if (recent.length >= limit) {
+      this.messageTimestamps.set(socketId, recent);
+      return true;
+    }
+
+    recent.push(now);
+    this.messageTimestamps.set(socketId, recent);
+
+    return false;
+  }
 
   private getUserFromSocket(client: Socket): SocketUser | null {
     const token = client.handshake.auth?.token;
@@ -108,11 +194,7 @@ export class GameGateway implements OnGatewayDisconnect {
       return true;
     }
 
-    if (room.hostId === client.id) {
-      return true;
-    }
-
-    return false;
+    return room.hostId === client.id;
   }
 
   private calculatePoints(isCorrect: boolean, responseTimeMs: number) {
@@ -244,7 +326,6 @@ export class GameGateway implements OnGatewayDisconnect {
     if (!user) return;
 
     const gamesPlayed = user.results.length;
-
     const accuracy =
       totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
 
@@ -392,11 +473,39 @@ export class GameGateway implements OnGatewayDisconnect {
       return;
     }
 
+    if (
+      !data ||
+      typeof data.toUserId !== 'string' ||
+      data.toUserId.trim().length < 1 ||
+      data.toUserId.length > 100 ||
+      !this.isValidRoomCode(data.roomCode)
+    ) {
+      client.emit('error_message', 'Neispravni podaci za pozivnicu.');
+      return;
+    }
+
+    const roomCode = this.normalizeRoomCode(data.roomCode);
+    const room = this.rooms.get(roomCode);
+
+    if (!room) {
+      client.emit('error_message', 'Soba nije pronađena.');
+      return;
+    }
+
+    const senderInRoom = room.players.some(
+      (player) => player.userId === authUser.id || player.id === client.id,
+    );
+
+    if (!senderInRoom) {
+      client.emit('error_message', 'Nisi član ove sobe.');
+      return;
+    }
+
     const invite = await this.prisma.roomInvite.create({
       data: {
         fromUserId: authUser.id,
         toUserId: data.toUserId,
-        roomCode: data.roomCode,
+        roomCode,
       },
       include: {
         fromUser: {
@@ -422,17 +531,25 @@ export class GameGateway implements OnGatewayDisconnect {
     },
     @ConnectedSocket() client: Socket,
   ) {
+    if (!data || !this.isValidNickname(data.nickname)) {
+      client.emit('error_message', 'Neispravan nadimak.');
+      return;
+    }
+
     const authUser = this.getUserFromSocket(client);
     const userId = authUser?.id;
 
     const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-    const questionCount = Number(data.questionCount) || 10;
-    const timePerQuestion = Number(data.timePerQuestion) || 15;
+    const questionCount = this.getSafeQuestionCount(data.questionCount, 10);
+    const timePerQuestion = this.getSafeTimePerQuestion(
+      data.timePerQuestion,
+      15,
+    );
 
     const player: Player = {
       id: client.id,
-      nickname: data.nickname,
+      nickname: this.sanitizeText(data.nickname),
       score: 0,
       correctAnswers: 0,
       answeredQuestions: [],
@@ -471,10 +588,21 @@ export class GameGateway implements OnGatewayDisconnect {
     },
     @ConnectedSocket() client: Socket,
   ) {
+    if (
+      !data ||
+      !this.isValidRoomCode(data.roomCode) ||
+      !this.isValidNickname(data.nickname)
+    ) {
+      client.emit('error_message', 'Neispravan kod sobe ili nadimak.');
+      return;
+    }
+
     const authUser = this.getUserFromSocket(client);
     const userId = authUser?.id;
+    const roomCode = this.normalizeRoomCode(data.roomCode);
+    const nickname = this.sanitizeText(data.nickname);
 
-    const room = this.rooms.get(data.roomCode);
+    const room = this.rooms.get(roomCode);
 
     if (!room) {
       client.emit('error_message', 'Soba nije pronađena.');
@@ -491,7 +619,7 @@ export class GameGateway implements OnGatewayDisconnect {
         return player.userId === userId;
       }
 
-      return player.nickname === data.nickname;
+      return player.nickname === nickname;
     });
 
     if (reconnectingPlayer) {
@@ -520,7 +648,7 @@ export class GameGateway implements OnGatewayDisconnect {
 
     const player: Player = {
       id: client.id,
-      nickname: data.nickname,
+      nickname,
       score: 0,
       correctAnswers: 0,
       answeredQuestions: [],
@@ -541,7 +669,18 @@ export class GameGateway implements OnGatewayDisconnect {
     @MessageBody() data: { roomCode: string; category: string },
     @ConnectedSocket() client: Socket,
   ) {
-    const room = this.rooms.get(data.roomCode);
+    if (
+      !data ||
+      !this.isValidRoomCode(data.roomCode) ||
+      !this.isValidCategory(data.category)
+    ) {
+      client.emit('error_message', 'Neispravni podaci za kategoriju.');
+      return;
+    }
+
+    const roomCode = this.normalizeRoomCode(data.roomCode);
+    const category = this.sanitizeText(data.category);
+    const room = this.rooms.get(roomCode);
 
     if (!room) return;
 
@@ -558,10 +697,10 @@ export class GameGateway implements OnGatewayDisconnect {
       return;
     }
 
-    room.selectedCategory = data.category;
+    room.selectedCategory = category;
 
     this.server.to(room.code).emit('category_updated', {
-      category: data.category,
+      category,
     });
 
     this.server.to(room.code).emit('room_updated', room);
@@ -572,7 +711,13 @@ export class GameGateway implements OnGatewayDisconnect {
     @MessageBody() data: { roomCode: string },
     @ConnectedSocket() client: Socket,
   ) {
-    const room = this.rooms.get(data.roomCode);
+    if (!data || !this.isValidRoomCode(data.roomCode)) {
+      client.emit('error_message', 'Neispravan kod sobe.');
+      return;
+    }
+
+    const roomCode = this.normalizeRoomCode(data.roomCode);
+    const room = this.rooms.get(roomCode);
 
     if (!room) return;
 
@@ -599,7 +744,13 @@ export class GameGateway implements OnGatewayDisconnect {
     },
     @ConnectedSocket() client: Socket,
   ) {
-    const room = this.rooms.get(data.roomCode);
+    if (!data || !this.isValidRoomCode(data.roomCode)) {
+      client.emit('error_message', 'Neispravan kod sobe.');
+      return;
+    }
+
+    const roomCode = this.normalizeRoomCode(data.roomCode);
+    const room = this.rooms.get(roomCode);
 
     if (!room) return;
 
@@ -608,23 +759,35 @@ export class GameGateway implements OnGatewayDisconnect {
       return;
     }
 
-    const allReady = room.players.every(
-      (player) => this.isRoomHost(room, client) || player.isReady,
-    );
+    const allReady = room.players.every((player) => {
+      const isHost =
+        player.id === room.hostId ||
+        (!!room.hostUserId && player.userId === room.hostUserId);
+
+      return isHost || player.isReady;
+    });
 
     if (!allReady) {
       client.emit('error_message', 'Svi igrači moraju biti ready.');
       return;
     }
 
-    const questionCount = Number(data.questionCount) || room.questionCount || 10;
-    const timePerQuestion =
-      Number(data.timePerQuestion) || room.timePerQuestion || 15;
+    const questionCount = this.getSafeQuestionCount(
+      data.questionCount,
+      room.questionCount || 10,
+    );
+
+    const timePerQuestion = this.getSafeTimePerQuestion(
+      data.timePerQuestion,
+      room.timePerQuestion || 15,
+    );
 
     room.questionCount = questionCount;
     room.timePerQuestion = timePerQuestion;
 
-    const allQuestions = await this.getQuestionsForCategory(room.selectedCategory);
+    const allQuestions = await this.getQuestionsForCategory(
+      room.selectedCategory,
+    );
 
     const selectedQuestions = shuffleArray(allQuestions).slice(0, questionCount);
 
@@ -669,7 +832,18 @@ export class GameGateway implements OnGatewayDisconnect {
     @MessageBody() data: { roomCode: string; answer: string },
     @ConnectedSocket() client: Socket,
   ) {
-    const room = this.rooms.get(data.roomCode);
+    if (
+      !data ||
+      !this.isValidRoomCode(data.roomCode) ||
+      !this.isValidAnswer(data.answer)
+    ) {
+      client.emit('error_message', 'Neispravan odgovor.');
+      return;
+    }
+
+    const roomCode = this.normalizeRoomCode(data.roomCode);
+    const answer = this.sanitizeText(data.answer);
+    const room = this.rooms.get(roomCode);
 
     if (!room || !room.started || !room.acceptingAnswers) return;
 
@@ -686,7 +860,7 @@ export class GameGateway implements OnGatewayDisconnect {
     player.answeredQuestions.push(room.currentQuestionIndex);
 
     const responseTimeMs = Date.now() - room.questionStartTime;
-    const isCorrect = data.answer === question.correctAnswer;
+    const isCorrect = answer === question.correctAnswer;
 
     if (isCorrect) {
       player.correctAnswers++;
@@ -720,7 +894,13 @@ export class GameGateway implements OnGatewayDisconnect {
     @MessageBody() data: { roomCode: string },
     @ConnectedSocket() client: Socket,
   ) {
-    const room = this.rooms.get(data.roomCode);
+    if (!data || !this.isValidRoomCode(data.roomCode)) {
+      client.emit('error_message', 'Neispravan kod sobe.');
+      return;
+    }
+
+    const roomCode = this.normalizeRoomCode(data.roomCode);
+    const room = this.rooms.get(roomCode);
 
     if (!room) return;
 
@@ -790,7 +970,22 @@ export class GameGateway implements OnGatewayDisconnect {
     },
     @ConnectedSocket() client: Socket,
   ) {
-    const room = this.rooms.get(data.roomCode);
+    if (
+      !data ||
+      !this.isValidRoomCode(data.roomCode) ||
+      !this.isValidChatMessage(data.message)
+    ) {
+      return;
+    }
+
+    if (this.isRateLimited(client.id)) {
+      client.emit('error_message', 'Šalješ poruke prebrzo.');
+      return;
+    }
+
+    const roomCode = this.normalizeRoomCode(data.roomCode);
+    const message = this.sanitizeText(data.message);
+    const room = this.rooms.get(roomCode);
 
     if (!room) return;
 
@@ -799,13 +994,15 @@ export class GameGateway implements OnGatewayDisconnect {
     if (!player) return;
 
     this.server.to(room.code).emit('new_message', {
-      nickname: player.nickname || data.nickname,
-      message: data.message,
+      nickname: player.nickname,
+      message,
       createdAt: new Date().toISOString(),
     });
   }
 
   handleDisconnect(client: Socket) {
+    this.messageTimestamps.delete(client.id);
+
     for (const [roomCode, room] of this.rooms.entries()) {
       const player = room.players.find((p) => p.id === client.id);
 

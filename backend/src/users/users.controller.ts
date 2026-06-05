@@ -149,24 +149,64 @@ export class UsersController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Post('invite-room')
-  async inviteToRoom(
-    @CurrentUser() user: any,
-    @Body()
-    body: InviteRoomDto,
-  ) {
-    if (body.toUserId === user.id) {
-      throw new ForbiddenException('Ne možeš poslati pozivnicu sam sebi.');
-    }
-
-    return this.prisma.roomInvite.create({
-      data: {
-        fromUserId: user.id,
-        toUserId: body.toUserId,
-        roomCode: body.roomCode,
-      },
-    });
+@Post('invite-room')
+async inviteToRoom(
+  @CurrentUser() user: any,
+  @Body() body: InviteRoomDto,
+) {
+  if (body.toUserId === user.id) {
+    throw new ForbiddenException('Ne možeš poslati pozivnicu sam sebi.');
   }
+
+  const receiver = await this.prisma.user.findUnique({
+    where: {
+      id: body.toUserId,
+    },
+  });
+
+  if (!receiver) {
+    throw new NotFoundException('Korisnik kojem šalješ pozivnicu ne postoji.');
+  }
+
+  const friendship = await this.prisma.friend.findFirst({
+    where: {
+      OR: [
+        {
+          senderId: user.id,
+          receiverId: body.toUserId,
+        },
+        {
+          senderId: body.toUserId,
+          receiverId: user.id,
+        },
+      ],
+    },
+  });
+
+  if (!friendship) {
+    throw new ForbiddenException('Pozivnicu možeš poslati samo prijatelju.');
+  }
+
+  const existingInvite = await this.prisma.roomInvite.findFirst({
+    where: {
+      fromUserId: user.id,
+      toUserId: body.toUserId,
+      roomCode: body.roomCode,
+    },
+  });
+
+  if (existingInvite) {
+    return existingInvite;
+  }
+
+  return this.prisma.roomInvite.create({
+    data: {
+      fromUserId: user.id,
+      toUserId: body.toUserId,
+      roomCode: body.roomCode,
+    },
+  });
+}
 
   @UseGuards(JwtAuthGuard)
   @Delete('room-invites/:inviteId')

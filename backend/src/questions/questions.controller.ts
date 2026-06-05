@@ -35,13 +35,33 @@ export class QuestionsController {
   constructor(private prisma: PrismaService) {}
 
   @Get()
-  async getQuestions() {
-    return this.prisma.question.findMany({
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-  }
+async getQuestions() {
+  return this.prisma.question.findMany({
+    orderBy: {
+      createdAt: 'desc',
+    },
+    select: {
+      id: true,
+      category: true,
+      question: true,
+      optionA: true,
+      optionB: true,
+      optionC: true,
+      optionD: true,
+      createdAt: true,
+    },
+  });
+}
+
+@UseGuards(JwtAuthGuard, AdminGuard)
+@Get('admin')
+async getAdminQuestions() {
+  return this.prisma.question.findMany({
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
+}
 
   @UseGuards(JwtAuthGuard, AdminGuard)
   @Get('ai/models')
