@@ -33,6 +33,7 @@ type Room = {
   started?: boolean;
   players: Player[];
   selectedCategory?: string;
+  selectedDifficulty?: string;
   questionCount?: number;
   timePerQuestion?: number;
 };
@@ -79,6 +80,24 @@ function getAuthHeaders() {
   };
 }
 
+const shellClass =
+  'min-h-screen bg-[radial-gradient(circle_at_50%_-10%,rgba(65,90,119,0.2),transparent_34%),linear-gradient(180deg,#0D1B2A_0%,#071523_100%)] text-[#E0E1DD]';
+
+const cardClass =
+  'rounded-[20px] border border-[#778DA9]/20 bg-[#1B263B]/88 shadow-[0_20px_70px_rgba(0,0,0,0.28)] backdrop-blur';
+
+const inputClass =
+  'w-full rounded-2xl border border-[#778DA9]/20 bg-[#0D1B2A]/70 px-4 py-3 text-[#E0E1DD] outline-none transition placeholder:text-[#778DA9] focus:border-[#778DA9]/55 focus:ring-4 focus:ring-[#778DA9]/10 disabled:cursor-not-allowed disabled:opacity-50';
+
+const primaryButtonClass =
+  'rounded-2xl bg-[#415A77] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#4f6d8f] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
+
+const successButtonClass =
+  'rounded-2xl bg-[#388E3C] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#43A047] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
+
+const dangerButtonClass =
+  'rounded-2xl bg-[#C62828] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#D32F2F] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
+
 export default function RoomPage() {
   const [nickname, setNickname] = useState('');
   const [room, setRoom] = useState<Room | null>(null);
@@ -100,6 +119,7 @@ export default function RoomPage() {
   const [questionCount, setQuestionCount] = useState(10);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
+  const [selectedDifficulty, setSelectedDifficulty] = useState('All');
 
   const finishSoundPlayedRef = useRef(false);
   const initializedRef = useRef(false);
@@ -132,6 +152,18 @@ export default function RoomPage() {
     audio.volume = 0.5;
     audio.play().catch(() => {});
   }
+
+  function changeDifficulty(difficulty: string) {
+  if (!room) return;
+
+  playSound('click');
+  setSelectedDifficulty(difficulty);
+
+  socket?.emit('set_difficulty', {
+    roomCode: room.code,
+    difficulty,
+  });
+}
 
   function saveCurrentRoom(roomData: Room) {
     localStorage.setItem('currentRoom', JSON.stringify(roomData));
@@ -166,35 +198,33 @@ export default function RoomPage() {
       socket?.emit('join_user_channel');
 
       fetch(`${API_URL}/users/me/friends`, {
-  headers: getAuthHeaders(),
-})
-  .then((res) => res.json())
-  .then((data: { friends?: Friend[] }) => {
-    setFriends(Array.isArray(data.friends) ? data.friends : []);
-  })
-  .catch(() => setFriends([]));
+        headers: getAuthHeaders(),
+      })
+        .then((res) => res.json())
+        .then((data: { friends?: Friend[] }) => {
+          setFriends(Array.isArray(data.friends) ? data.friends : []);
+        })
+        .catch(() => setFriends([]));
     } else if (savedNickname) {
       setNickname(savedNickname);
     }
 
     socket.on('kicked_from_room', () => {
-  localStorage.removeItem('currentRoom');
-  localStorage.removeItem('lastRoomCode');
-  localStorage.removeItem('returnToRoom');
+      localStorage.removeItem('currentRoom');
+      localStorage.removeItem('lastRoomCode');
+      localStorage.removeItem('returnToRoom');
 
-  alert('Izbačen si iz sobe.');
-  window.location.href = '/';
-});
+      alert('Izbačen si iz sobe.');
+      window.location.href = '/';
+    });
 
     socket.on('room_created', (roomData: Room) => {
       console.log('ROOM CREATED', roomData);
       setRoom(roomData);
       saveCurrentRoom(roomData);
-localStorage.setItem(
-  'returnToRoom',
-  `/room?room=${roomData.code}`,
-);
+      localStorage.setItem('returnToRoom', `/room?room=${roomData.code}`);
       setSelectedCategory(roomData.selectedCategory ?? 'All');
+      setSelectedDifficulty(roomData.selectedDifficulty ?? 'All');
       setTotalPlayers(roomData.players.length);
       setQuestionCount(roomData.questionCount ?? 10);
       setTimePerQuestion(roomData.timePerQuestion ?? 15);
@@ -204,12 +234,10 @@ localStorage.setItem(
     socket.on('room_updated', (roomData: Room) => {
       setRoom(roomData);
       saveCurrentRoom(roomData);
-localStorage.setItem(
-  'returnToRoom',
-  `/room?room=${roomData.code}`,
-);
+      localStorage.setItem('returnToRoom', `/room?room=${roomData.code}`);
       setTotalPlayers(roomData.players.length);
       setSelectedCategory(roomData.selectedCategory ?? 'All');
+      setSelectedDifficulty(roomData.selectedDifficulty ?? 'All');
       setQuestionCount(roomData.questionCount ?? 10);
       setTimePerQuestion(roomData.timePerQuestion ?? 15);
       saveCurrentRoom(roomData);
@@ -218,15 +246,12 @@ localStorage.setItem(
     socket.on('player_joined', (roomData: Room) => {
       setRoom(roomData);
       saveCurrentRoom(roomData);
-localStorage.setItem(
-  'returnToRoom',
-  `/room?room=${roomData.code}`,
-);
+      localStorage.setItem('returnToRoom', `/room?room=${roomData.code}`);
       setSelectedCategory(roomData.selectedCategory ?? 'All');
+      setSelectedDifficulty(roomData.selectedDifficulty ?? 'All');
       setTotalPlayers(roomData.players.length);
       saveCurrentRoom(roomData);
     });
-    
 
     socket.on('category_updated', (data: { category: string }) => {
       setSelectedCategory(data.category);
@@ -262,11 +287,11 @@ localStorage.setItem(
         setAnswerResult(null);
         setErrorMessage('');
         if (room) {
-  saveCurrentRoom({
-    ...room,
-    started: true,
-  });
-}
+          saveCurrentRoom({
+            ...room,
+            started: true,
+          });
+        }
       },
     );
 
@@ -292,28 +317,28 @@ localStorage.setItem(
         setAnswerResult(null);
         setErrorMessage('');
         if (room) {
-  saveCurrentRoom({
-    ...room,
-    started: true,
-  });
-  socket.on('reconnected_to_game', (data) => {
-  setRoom(data.room);
-  saveCurrentRoom(data.room);
+          saveCurrentRoom({
+            ...room,
+            started: true,
+          });
+          socket.on('reconnected_to_game', (data) => {
+            setRoom(data.room);
+            saveCurrentRoom(data.room);
 
-  setQuestion(data.question);
-  setQuestionNumber(data.questionNumber);
-  setTotalQuestions(data.totalQuestions);
-  setAnsweredCount(data.answeredCount);
-  setTotalPlayers(data.totalPlayers);
-  setTimeLeft(data.timePerQuestion ?? 15);
+            setQuestion(data.question);
+            setQuestionNumber(data.questionNumber);
+            setTotalQuestions(data.totalQuestions);
+            setAnsweredCount(data.answeredCount);
+            setTotalPlayers(data.totalPlayers);
+            setTimeLeft(data.timePerQuestion ?? 15);
 
-  setGameFinished(false);
-  setQuestionEnded(!data.room.acceptingAnswers);
-  setHasAnswered(false);
-  setAnswerResult(null);
-  setErrorMessage('');
-});
-}
+            setGameFinished(false);
+            setQuestionEnded(!data.room.acceptingAnswers);
+            setHasAnswered(false);
+            setAnswerResult(null);
+            setErrorMessage('');
+          });
+        }
       },
     );
 
@@ -380,17 +405,17 @@ localStorage.setItem(
         finishSoundPlayedRef.current = true;
 
         const historyKey = `roomGameHistory:${data.room.code}`;
-const savedHistory = localStorage.getItem(historyKey);
-const gameHistory = savedHistory ? JSON.parse(savedHistory) : [];
+        const savedHistory = localStorage.getItem(historyKey);
+        const gameHistory = savedHistory ? JSON.parse(savedHistory) : [];
 
-gameHistory.push({
-  gameNumber: gameHistory.length + 1,
-  playedAt: new Date().toISOString(),
-  roomCode: data.room.code,
-  players: sortedPlayers,
-});
+        gameHistory.push({
+          gameNumber: gameHistory.length + 1,
+          playedAt: new Date().toISOString(),
+          roomCode: data.room.code,
+          players: sortedPlayers,
+        });
 
-localStorage.setItem(historyKey, JSON.stringify(gameHistory));
+        localStorage.setItem(historyKey, JSON.stringify(gameHistory));
       }
 
       setQuestion(null);
@@ -421,19 +446,20 @@ localStorage.setItem(historyKey, JSON.stringify(gameHistory));
           timePerQuestion,
         });
       } else if (roomFromUrl && finalNickname) {
-  const parsedUser = savedUser ? (JSON.parse(savedUser) as User) : null;
+        const parsedUser = savedUser ? (JSON.parse(savedUser) as User) : null;
 
-  socket?.emit('join_room', {
-    roomCode: roomFromUrl.toUpperCase(),
-    nickname: finalNickname,
-    userId: parsedUser?.id ?? null,
-    reconnect: true,
-  });
-}else if (savedRoom) {
+        socket?.emit('join_room', {
+          roomCode: roomFromUrl.toUpperCase(),
+          nickname: finalNickname,
+          userId: parsedUser?.id ?? null,
+          reconnect: true,
+        });
+      } else if (savedRoom) {
         const parsedRoom = JSON.parse(savedRoom) as Room;
 
         setRoom(parsedRoom);
         setSelectedCategory(parsedRoom.selectedCategory ?? 'All');
+        setSelectedDifficulty(parsedRoom.selectedDifficulty ?? 'All');
         setTotalPlayers(parsedRoom.players.length);
         setQuestionCount(parsedRoom.questionCount ?? 10);
         setTimePerQuestion(parsedRoom.timePerQuestion ?? 15);
@@ -458,8 +484,6 @@ localStorage.setItem(historyKey, JSON.stringify(gameHistory));
       socket.off('kicked_from_room');
     };
   }, [questionCount, timePerQuestion]);
-
-  
 
   function changeCategory(category: string) {
     if (!room) return;
@@ -564,53 +588,72 @@ localStorage.setItem(historyKey, JSON.stringify(gameHistory));
   }
 
   function kickPlayer(playerId: string) {
-  if (!room || !isHost) return;
+    if (!room || !isHost) return;
 
-  socket.emit('kick_player', {
-    roomCode: room.code,
-    playerId,
-  });
-}
+    socket.emit('kick_player', {
+      roomCode: room.code,
+      playerId,
+    });
+  }
 
   if (gameFinished) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-900 p-6 text-white">
-        <div className="w-full max-w-2xl rounded-2xl bg-zinc-800 p-8 shadow-xl">
-          <h1 className="mb-8 text-center text-5xl font-bold">Game Over</h1>
+      <main className={`${shellClass} flex items-center justify-center p-4 sm:p-6`}>
+        <div className={`${cardClass} w-full max-w-3xl p-5 sm:p-8`}>
+          <div className="mb-8 text-center">
+            <p className="mb-3 text-sm font-bold uppercase tracking-[0.24em] text-[#778DA9]">
+              Final results
+            </p>
+            <h1 className="text-4xl font-black tracking-tight sm:text-6xl">
+              Game Over
+            </h1>
+            <p className="mt-3 text-[#B8C4D6]">
+              Završni poredak sobe i osvojeni bodovi.
+            </p>
+          </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             {leaderboard.map((player, index) => (
               <div
                 key={player.id}
-                className="flex items-center justify-between rounded-xl bg-zinc-700 p-4"
+                className="flex items-center justify-between rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/55 p-4 transition hover:border-[#778DA9]/35 hover:bg-[#0D1B2A]/75"
               >
-                <div className="flex items-center gap-4">
-                  <span className="text-2xl">
+                <div className="flex min-w-0 items-center gap-4">
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#415A77]/35 text-xl">
                     {index === 0
                       ? '🥇'
                       : index === 1
                         ? '🥈'
                         : index === 2
                           ? '🥉'
-                          : '🎮'}
+                          : index + 1}
                   </span>
 
                   <Image
                     src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${player.nickname}`}
                     width={56}
                     height={56}
-                    className="h-14 w-14 rounded-full"
+                    className="h-12 w-12 rounded-full ring-2 ring-[#778DA9]/25 sm:h-14 sm:w-14"
                     alt={`${player.nickname} avatar`}
                     unoptimized
                   />
 
-                  <div>
-                    <p className="text-xl font-bold">{player.nickname}</p>
-                    <p className="text-sm text-zinc-400">#{index + 1} mjesto</p>
+                  <div className="min-w-0">
+                    <p className="truncate text-lg font-black">
+                      {player.nickname}
+                    </p>
+                    <p className="text-sm text-[#778DA9]">
+                      #{index + 1} mjesto
+                    </p>
                   </div>
                 </div>
 
-                <span className="text-2xl font-bold">{player.score}</span>
+                <div className="text-right">
+                  <span className="text-2xl font-black">{player.score}</span>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[#778DA9]">
+                    bodova
+                  </p>
+                </div>
               </div>
             ))}
           </div>
@@ -626,73 +669,120 @@ localStorage.setItem(historyKey, JSON.stringify(gameHistory));
               setAnswerResult(null);
               setLeaderboard([]);
             }}
-            className="mt-8 w-full rounded-xl bg-blue-600 p-4 text-xl font-bold hover:bg-blue-700"
+            className={`${successButtonClass} mt-8 w-full`}
           >
             Igraj ponovno
           </button>
 
-          <a
+          <Link
             href="/leaderboard"
-            className="mt-4 block text-center text-blue-400 hover:underline"
+            className="mt-4 block rounded-2xl border border-[#778DA9]/20 px-5 py-3 text-center font-bold text-[#E0E1DD] transition hover:border-[#778DA9]/45 hover:bg-[#415A77]/20"
           >
             Pogledaj leaderboard i statistike sobe
-          </a>
+          </Link>
         </div>
       </main>
     );
   }
 
   if (question) {
+    const timerPercent = Math.max(
+      0,
+      Math.min(100, (timeLeft / timePerQuestion) * 100),
+    );
+
     return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-900 p-6 text-white">
-        <div className="w-full max-w-xl rounded-2xl bg-zinc-800 p-8 shadow-xl">
+      <main className={`${shellClass} flex items-center justify-center p-4 sm:p-6`}>
+        <div className="w-full max-w-5xl">
           {errorMessage && (
-            <div className="mb-6 rounded-lg bg-yellow-500 p-3 text-center font-bold text-black">
+            <div className="mb-5 rounded-2xl border border-[#C62828]/30 bg-[#C62828]/15 p-4 text-center font-bold text-[#ffb4b4]">
               {errorMessage}
             </div>
           )}
 
-          <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-xl font-bold">Vrijeme: {timeLeft}s</h2>
+          <div className="mb-8 grid gap-4 md:grid-cols-3">
+            <div className={`${cardClass} p-5`}>
+              <p className="text-sm font-bold text-[#B8C4D6]">Vrijeme</p>
+              <div className="mt-3 flex items-center gap-4">
+                <div
+                  className="grid h-16 w-16 place-items-center rounded-full"
+                  style={{
+                    background: `conic-gradient(#388E3C ${timerPercent}%, rgba(119,141,169,0.18) 0)`,
+                  }}
+                >
+                  <div className="grid h-12 w-12 place-items-center rounded-full bg-[#0D1B2A] text-xl font-black">
+                    {timeLeft}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-3xl font-black">{timeLeft}s</p>
+                  <p className="text-sm text-[#778DA9]">preostalo</p>
+                </div>
+              </div>
+            </div>
 
-            {hasAnswered && (
-              <span className="rounded-lg bg-green-600 px-3 py-1 text-sm font-bold">
-                Odgovoreno
-              </span>
-            )}
+            <div className={`${cardClass} p-5 text-center`}>
+              <p className="text-sm font-bold text-[#B8C4D6]">Progress</p>
+              <p className="mt-2 text-4xl font-black">
+                {questionNumber} / {totalQuestions}
+              </p>
+              <p className="mt-1 text-sm text-[#778DA9]">
+                {answeredCount}/{totalPlayers} odgovorilo
+              </p>
+            </div>
+
+            <div className={`${cardClass} p-5`}>
+              <p className="text-sm font-bold text-[#B8C4D6]">Status</p>
+              <div className="mt-4">
+                {hasAnswered ? (
+                  <span className="inline-flex rounded-full border border-[#388E3C]/35 bg-[#388E3C]/15 px-4 py-2 text-sm font-black text-[#75d27a]">
+                    Odgovoreno
+                  </span>
+                ) : questionEnded ? (
+                  <span className="inline-flex rounded-full border border-[#C62828]/35 bg-[#C62828]/15 px-4 py-2 text-sm font-black text-[#ffb4b4]">
+                    Pitanje završeno
+                  </span>
+                ) : (
+                  <span className="inline-flex rounded-full border border-[#778DA9]/25 bg-[#778DA9]/10 px-4 py-2 text-sm font-black text-[#B8C4D6]">
+                    U tijeku
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
 
-          <div className="mb-6 rounded-lg bg-zinc-700 p-3 text-center">
-            Odgovorilo je {answeredCount} / {totalPlayers} igrača
+          <div className={`${cardClass} p-5 text-center sm:p-8`}>
+            <span className="inline-flex rounded-full bg-[#415A77]/35 px-4 py-2 text-xs font-black uppercase tracking-wider text-[#E0E1DD]">
+              {question.category}
+            </span>
+
+            <h1 className="mx-auto mt-6 max-w-3xl text-2xl font-black leading-tight tracking-tight sm:text-4xl">
+              {question.question}
+            </h1>
           </div>
 
-          <p className="mb-2 text-center text-sm uppercase tracking-widest text-purple-400">
-            {question.category}
-          </p>
-
-          <p className="mb-4 text-center text-lg text-zinc-300">
-            Pitanje {questionNumber} / {totalQuestions}
-          </p>
-
-          <h1 className="mb-8 text-3xl font-bold">{question.question}</h1>
-
-          <div className="space-y-4">
-            {question.options.map((option) => (
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            {question.options.map((option, index) => (
               <button
                 key={option}
                 onClick={() => submitAnswer(option)}
                 disabled={hasAnswered || questionEnded}
-                className="w-full rounded-lg bg-blue-600 p-4 text-left font-bold hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-zinc-600"
+                className="group flex items-center gap-4 rounded-[20px] border border-[#778DA9]/20 bg-[#1B263B]/88 p-5 text-left font-black text-[#E0E1DD] shadow-[0_14px_45px_rgba(0,0,0,0.18)] transition hover:-translate-y-0.5 hover:border-[#778DA9]/45 hover:bg-[#243551] disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0"
               >
-                {option}
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#0D1B2A] text-sm font-black text-[#B8C4D6] transition group-hover:bg-[#415A77] group-hover:text-white">
+                  {String.fromCharCode(65 + index)}
+                </span>
+                <span>{option}</span>
               </button>
             ))}
           </div>
 
           {answerResult && (
             <div
-              className={`mt-6 rounded-lg p-3 text-center font-bold ${
-                answerResult.isCorrect ? 'bg-green-600' : 'bg-red-600'
+              className={`mt-6 rounded-2xl border p-4 text-center font-black ${
+                answerResult.isCorrect
+                  ? 'border-[#388E3C]/35 bg-[#388E3C]/15 text-[#75d27a]'
+                  : 'border-[#C62828]/35 bg-[#C62828]/15 text-[#ffb4b4]'
               }`}
             >
               {answerResult.isCorrect
@@ -701,55 +791,41 @@ localStorage.setItem(historyKey, JSON.stringify(gameHistory));
             </div>
           )}
 
-          {questionEnded && (
-            <p className="mt-6 rounded-lg bg-red-600 p-3 text-center font-bold">
-              Pitanje je završeno!
-            </p>
-          )}
-
           {shouldShowLeaderboard && leaderboard.length > 0 && (
-            <div className="mt-8 rounded-xl bg-zinc-700 p-4">
-              <h2 className="mb-2 text-center text-3xl font-bold">
-                🏆 Room Leaderboard
-              </h2>
+            <div className={`${cardClass} mt-8 p-5 sm:p-6`}>
+              <h2 className="mb-5 text-2xl font-black">Room Leaderboard</h2>
 
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {leaderboard.map((player, index) => (
                   <div
                     key={player.id}
-                    className="flex items-center justify-between rounded-xl bg-zinc-800 p-4"
+                    className="flex items-center justify-between rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/55 p-4"
                   >
-                    <div className="flex items-center gap-4">
-                      <span className="text-2xl">
-                        {index === 0
-                          ? '🥇'
-                          : index === 1
-                            ? '🥈'
-                            : index === 2
-                              ? '🥉'
-                              : '🎮'}
+                    <div className="flex min-w-0 items-center gap-4">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[#415A77]/35 font-black">
+                        {index + 1}
                       </span>
 
                       <Image
                         src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${player.nickname}`}
                         width={48}
                         height={48}
-                        className="h-12 w-12 rounded-full"
+                        className="h-11 w-11 rounded-full ring-2 ring-[#778DA9]/25"
                         alt={`${player.nickname} avatar`}
                         unoptimized
                       />
 
-                      <div>
-                        <p className="font-bold">{player.nickname}</p>
-                        <p className="text-sm text-zinc-400">
+                      <div className="min-w-0">
+                        <p className="truncate font-black">{player.nickname}</p>
+                        <p className="text-sm text-[#778DA9]">
                           #{index + 1} mjesto
                         </p>
                       </div>
                     </div>
 
                     <div className="text-right">
-                      <p className="text-2xl font-bold">{player.score}</p>
-                      <p className="text-xs text-zinc-400">bodova</p>
+                      <p className="text-2xl font-black">{player.score}</p>
+                      <p className="text-xs text-[#778DA9]">bodova</p>
                     </div>
                   </div>
                 ))}
@@ -758,11 +834,9 @@ localStorage.setItem(historyKey, JSON.stringify(gameHistory));
               {isHost && (
                 <button
                   onClick={nextQuestion}
-                  className="mt-6 w-full rounded-lg bg-purple-600 p-3 font-bold hover:bg-purple-700"
+                  className={`${primaryButtonClass} mt-6 w-full`}
                 >
-                  {isLastQuestion
-                    ? '🏁 Pogledaj rezultate'
-                    : '➡️ Sljedeće pitanje'}
+                  {isLastQuestion ? 'Pogledaj rezultate' : 'Sljedeće pitanje'}
                 </button>
               )}
             </div>
@@ -774,240 +848,329 @@ localStorage.setItem(historyKey, JSON.stringify(gameHistory));
 
   if (!room) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-900 p-6 text-white">
-        <div className="rounded-2xl bg-zinc-800 p-8 text-center shadow-xl">
-          <h1 className="mb-4 text-3xl font-bold">Učitavanje sobe...</h1>
+      <main className={`${shellClass} flex items-center justify-center p-6`}>
+        <div className={`${cardClass} w-full max-w-md p-8 text-center`}>
+          <div className="mx-auto mb-5 h-12 w-12 animate-pulse rounded-2xl bg-[#415A77]/50" />
+          <h1 className="text-3xl font-black">Učitavanje sobe...</h1>
 
           {errorMessage && (
-            <p className="mb-4 rounded-lg bg-red-600 p-3 font-bold">
+            <p className="mt-5 rounded-2xl border border-[#C62828]/35 bg-[#C62828]/15 p-4 font-bold text-[#ffb4b4]">
               {errorMessage}
             </p>
           )}
 
-          <Link href="/">← Nazad</Link>
+          <Link
+            href="/"
+            className="mt-6 inline-flex rounded-2xl border border-[#778DA9]/20 px-5 py-3 font-bold transition hover:border-[#778DA9]/45 hover:bg-[#415A77]/20"
+          >
+            ← Nazad
+          </Link>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-zinc-900 p-8 text-white">
-      <div className="mx-auto max-w-5xl rounded-2xl bg-zinc-800 p-8 shadow-xl">
+    <main className={`${shellClass} p-4 sm:p-6 lg:p-8`}>
+      <div className="mx-auto max-w-7xl">
         {errorMessage && (
-          <div className="mb-6 rounded-lg bg-red-600 p-3 text-center font-bold">
+          <div className="mb-6 rounded-2xl border border-[#C62828]/35 bg-[#C62828]/15 p-4 text-center font-bold text-[#ffb4b4]">
             {errorMessage}
           </div>
         )}
 
-        <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+        <header className="mb-8 flex flex-col justify-between gap-5 border-b border-[#778DA9]/15 pb-6 lg:flex-row lg:items-center">
           <div>
-            <h1 className="text-4xl font-bold">Soba: {room.code}</h1>
-            <p className="text-zinc-400">
+            <p className="mb-2 text-sm font-bold uppercase tracking-[0.24em] text-[#778DA9]">
+              Room Lobby
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
+                Soba
+              </h1>
+              <span className="rounded-full border border-[#778DA9]/20 bg-[#1B263B] px-4 py-2 font-mono text-sm font-black tracking-widest text-[#B8C4D6]">
+                {room.code}
+              </span>
+            </div>
+            <p className="mt-3 text-[#B8C4D6]">
               {isHost ? 'Ti si host sobe' : 'Čekaš da host pokrene igru'}
             </p>
           </div>
 
-          <button
-            onClick={leaveRoom}
-            className="rounded-lg bg-red-600 px-5 py-3 font-bold hover:bg-red-700"
-          >
+          <button onClick={leaveRoom} className={dangerButtonClass}>
             Napusti sobu
           </button>
-        </div>
+        </header>
 
-        <div className="grid gap-6 lg:grid-cols-3">
-          <section className="rounded-xl bg-zinc-700 p-6 lg:col-span-2">
-            <h2 className="mb-4 text-2xl font-bold">Igrači</h2>
+        <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
+          <div className="space-y-6">
+            <section className={`${cardClass} p-5 sm:p-6`}>
+              <div className="mb-5 flex items-center justify-between gap-4">
+                <h2 className="text-2xl font-black">
+                  Igrači ({room.players.length}/8)
+                </h2>
+                <span className="rounded-full bg-[#415A77]/25 px-3 py-1 text-xs font-black uppercase tracking-wider text-[#B8C4D6]">
+                  {room.players.filter((player) => player.isReady).length} ready
+                </span>
+              </div>
 
-            <div className="space-y-3">
-              {room.players.map((player) => (
-                <div
-                  key={player.id}
-                  className="flex items-center justify-between rounded-lg bg-zinc-800 p-4"
-                >
-                  <div className="flex items-center gap-3">
-                    <Image
-                      src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${player.nickname}`}
-                      width={48}
-                      height={48}
-                      className="h-12 w-12 rounded-full"
-                      alt={`${player.nickname} avatar`}
-                      unoptimized
-                    />
+              <div className="space-y-3">
+                {room.players.map((player) => (
+                  <div
+                    key={player.id}
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/55 p-4 transition hover:border-[#778DA9]/35 hover:bg-[#0D1B2A]/75"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="relative shrink-0">
+                        <Image
+                          src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${player.nickname}`}
+                          width={48}
+                          height={48}
+                          className="h-12 w-12 rounded-full ring-2 ring-[#778DA9]/25"
+                          alt={`${player.nickname} avatar`}
+                          unoptimized
+                        />
+                        <span
+                          className={`absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-[#0D1B2A] ${
+                            player.connected === false
+                              ? 'bg-[#C62828]'
+                              : 'bg-[#388E3C]'
+                          }`}
+                        />
+                      </div>
 
-                    <div>
-                      <p className="font-bold">
-                        {player.nickname}{' '}
-                        {player.id === room.hostId && (
-                          <span className="text-yellow-400">(Host)</span>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate font-black">
+                            {player.nickname}
+                          </p>
+                          {player.id === room.hostId && (
+                            <span className="rounded-full bg-[#778DA9]/15 px-2.5 py-1 text-xs font-black text-[#B8C4D6]">
+                              Host
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-sm text-[#778DA9]">
+                          {player.connected === false ? 'Offline' : 'Online'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-black ${
+                          player.isReady
+                            ? 'bg-[#388E3C]/20 text-[#75d27a]'
+                            : 'bg-[#778DA9]/12 text-[#B8C4D6]'
+                        }`}
+                      >
+                        {player.isReady ? 'Ready' : 'Not ready'}
+                      </span>
+
+                      {isHost &&
+                        player.id !== room.hostId &&
+                        player.id !== currentPlayer?.id && (
+                          <button
+                            type="button"
+                            onClick={() => kickPlayer(player.id)}
+                            className="rounded-full border border-[#C62828]/30 bg-[#C62828]/15 px-3 py-1 text-xs font-black text-[#ffb4b4] transition hover:bg-[#C62828] hover:text-white"
+                          >
+                            Izbaci
+                          </button>
                         )}
-                      </p>
-
-                      <p className="text-sm text-zinc-400">
-                        {player.connected === false ? 'Offline' : 'Online'}
-                      </p>
                     </div>
                   </div>
+                ))}
+              </div>
 
-                  <div className="flex items-center gap-2">
-  <span
-    className={`rounded-lg px-3 py-1 text-sm font-bold ${
-      player.isReady ? 'bg-green-600' : 'bg-zinc-600'
-    }`}
-  >
-    {player.isReady ? 'Ready' : 'Not ready'}
-  </span>
-
-  {isHost && player.id !== room.hostId && player.id !== currentPlayer?.id && (
-    <button
-      type="button"
-      onClick={() => kickPlayer(player.id)}
-      className="rounded-lg bg-red-600 px-3 py-1 text-sm font-bold hover:bg-red-700"
-    >
-      Izbaci
-    </button>
-  )}
-</div>
-                </div>
-              ))}
-            </div>
-
-            <button
-              onClick={toggleReady}
-              className="mt-6 w-full rounded-lg bg-green-600 p-3 font-bold hover:bg-green-700"
-            >
-              {currentPlayer?.isReady ? 'Makni ready' : 'Ready'}
-            </button>
-          </section>
-
-          <section className="rounded-xl bg-zinc-700 p-6">
-            <h2 className="mb-4 text-2xl font-bold">Postavke</h2>
-
-            <label className="mb-2 block text-sm text-zinc-300">
-              Kategorija
-            </label>
-
-            <select
-              value={selectedCategory}
-              onChange={(e) => changeCategory(e.target.value)}
-              disabled={!isHost || room.started}
-              className="mb-4 w-full rounded-lg p-3 text-black disabled:opacity-50"
-            >
-              <option value="All">Sve kategorije</option>
-              <option value="Sport">Sport</option>
-              <option value="Geografija">Geografija</option>
-              <option value="Računarstvo">Računarstvo</option>
-              <option value="Povijest">Povijest</option>
-              <option value="Znanost">Znanost</option>
-              <option value="Književnost">Književnost</option>
-              <option value="Umjetnost">Umjetnost</option>
-              <option value="Glazba">Glazba</option>
-              <option value="Videoigre">Videoigre</option>
-              <option value="Trendovi i aktualnosti">Trendovi i aktualnosti</option>
-              <option value="Poslovanje i brendovi">Poslovanje i brendovi</option>
-              <option value="Životinje">Životinje</option>
-              <option value="Ljudsko tijelo i zdravlje">Ljudsko tijelo i zdravlje</option>
-            </select>
-
-            <label className="mb-2 block text-sm text-zinc-300">
-              Broj pitanja
-            </label>
-
-            <input
-              type="number"
-              min={1}
-              max={30}
-              value={questionCount}
-              onChange={(e) => setQuestionCount(Number(e.target.value))}
-              disabled={!isHost || room.started}
-              className="mb-4 w-full rounded-lg p-3 text-black disabled:opacity-50"
-            />
-
-            <label className="mb-2 block text-sm text-zinc-300">
-              Vrijeme po pitanju
-            </label>
-
-            <input
-              type="number"
-              min={5}
-              max={60}
-              value={timePerQuestion}
-              onChange={(e) => setTimePerQuestion(Number(e.target.value))}
-              disabled={!isHost || room.started}
-              className="mb-4 w-full rounded-lg p-3 text-black disabled:opacity-50"
-            />
-
-            {isHost && (
               <button
-                onClick={startGame}
-                className="w-full rounded-lg bg-blue-600 p-3 font-bold hover:bg-blue-700"
+                onClick={toggleReady}
+                className={`${successButtonClass} mt-6 w-full`}
               >
-                Pokreni igru
+                {currentPlayer?.isReady ? 'Makni ready' : 'Ready'}
               </button>
-            )}
-          </section>
-        </div>
+            </section>
 
-        {friends.length > 0 && (
-          <section className="mt-8 rounded-xl bg-zinc-700 p-6">
-            <h2 className="mb-4 text-2xl font-bold">Pozovi prijatelje</h2>
+            {friends.length > 0 && (
+              <section className={`${cardClass} p-5 sm:p-6`}>
+                <h2 className="mb-4 text-2xl font-black">
+                  Pozovi prijatelje
+                </h2>
 
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {friends.map((friend) => {
-                const friendData = getFriendData(friend);
+                <div className="grid gap-3">
+                  {friends.map((friend) => {
+                    const friendData = getFriendData(friend);
 
-                return (
-                  <button
-                    key={friendData.id}
-                    onClick={() => inviteFriend(friendData.id)}
-                    className="rounded-lg bg-zinc-800 p-4 text-left hover:bg-zinc-600"
-                  >
-                    <p className="font-bold">{friendData.username}</p>
-                    <p className="text-sm text-zinc-400">Pošalji pozivnicu</p>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        <section className="mt-8 rounded-xl bg-zinc-700 p-6">
-          <h2 className="mb-4 text-2xl font-bold">Chat</h2>
-
-          <div className="mb-4 max-h-64 space-y-2 overflow-y-auto rounded-lg bg-zinc-800 p-4">
-            {chatMessages.length === 0 ? (
-              <p className="text-zinc-400">Još nema poruka.</p>
-            ) : (
-              chatMessages.map((message, index) => (
-                <div key={`${message.createdAt}-${index}`}>
-                  <span className="font-bold">{message.nickname}: </span>
-                  <span>{message.message}</span>
+                    return (
+                      <button
+                        key={friendData.id}
+                        onClick={() => inviteFriend(friendData.id)}
+                        className="rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/55 p-4 text-left transition hover:-translate-y-0.5 hover:border-[#778DA9]/35 hover:bg-[#0D1B2A]/75"
+                      >
+                        <p className="font-black">{friendData.username}</p>
+                        <p className="text-sm text-[#778DA9]">
+                          Pošalji pozivnicu
+                        </p>
+                      </button>
+                    );
+                  })}
                 </div>
-              ))
+              </section>
             )}
           </div>
 
-          <div className="flex gap-2">
-            <input
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  sendMessage();
-                }
-              }}
-              className="w-full rounded-lg p-3 text-black"
-              placeholder="Napiši poruku..."
-            />
+          <div className="space-y-6">
+            <section className={`${cardClass} p-5 sm:p-6`}>
+              <h2 className="mb-6 text-2xl font-black">Postavke igre</h2>
 
-            <button
-              onClick={sendMessage}
-              className="rounded-lg bg-blue-600 px-5 font-bold hover:bg-blue-700"
-            >
-              Pošalji
-            </button>
+              <div className="grid gap-5 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-bold text-[#B8C4D6]">
+                    Kategorija
+                  </label>
+
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => changeCategory(e.target.value)}
+                    disabled={!isHost || room.started}
+                    className={inputClass}
+                  >
+                    <option value="All">Sve kategorije</option>
+                    <option value="Sport">Sport</option>
+                    <option value="Geografija">Geografija</option>
+                    <option value="Računarstvo">Računarstvo</option>
+                    <option value="Povijest">Povijest</option>
+                    <option value="Znanost">Znanost</option>
+                    <option value="Književnost">Književnost</option>
+                    <option value="Umjetnost">Umjetnost</option>
+                    <option value="Glazba">Glazba</option>
+                    <option value="Videoigre">Videoigre</option>
+                    <option value="Trendovi i aktualnosti">
+                      Trendovi i aktualnosti
+                    </option>
+                    <option value="Poslovanje i brendovi">
+                      Poslovanje i brendovi
+                    </option>
+                    <option value="Životinje">Životinje</option>
+                    <option value="Ljudsko tijelo i zdravlje">
+                      Ljudsko tijelo i zdravlje
+                    </option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-bold text-[#B8C4D6]">
+                    Broj pitanja
+                  </label>
+
+                  <input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={questionCount}
+                    onChange={(e) => setQuestionCount(Number(e.target.value))}
+                    disabled={!isHost || room.started}
+                    className={inputClass}
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-bold text-[#B8C4D6]">
+                    Vrijeme po pitanju
+                  </label>
+
+                  <input
+                    type="number"
+                    min={5}
+                    max={60}
+                    value={timePerQuestion}
+                    onChange={(e) =>
+                      setTimePerQuestion(Number(e.target.value))
+                    }
+                    disabled={!isHost || room.started}
+                    className={inputClass}
+                  />
+                </div>
+
+                <div>
+  <label className="mb-2 block text-sm font-bold text-[#B8C4D6]">
+    Težina
+  </label>
+
+  <select
+    value={selectedDifficulty}
+    onChange={(e) => changeDifficulty(e.target.value)}
+    disabled={!isHost || room.started}
+    className={inputClass}
+  >
+    <option value="All">Sve težine</option>
+    <option value="easy">Easy</option>
+    <option value="medium">Medium</option>
+    <option value="hard">Hard</option>
+  </select>
+</div>
+              </div>
+
+              {isHost && (
+                <button
+                  onClick={startGame}
+                  className={`${successButtonClass} mt-6 w-full`}
+                >
+                  Pokreni igru
+                </button>
+              )}
+            </section>
+
+            <section className={`${cardClass} p-5 sm:p-6`}>
+              <div className="mb-5 flex items-center justify-between gap-4">
+                <h2 className="text-2xl font-black">Chat</h2>
+                <span className="rounded-full bg-[#415A77]/25 px-3 py-1 text-xs font-black uppercase tracking-wider text-[#B8C4D6]">
+                  Live room
+                </span>
+              </div>
+
+              <div className="mb-4 max-h-72 space-y-3 overflow-y-auto rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/55 p-4">
+                {chatMessages.length === 0 ? (
+                  <p className="text-[#778DA9]">Još nema poruka.</p>
+                ) : (
+                  chatMessages.map((message, index) => (
+                    <div
+                      key={`${message.createdAt}-${index}`}
+                      className="rounded-2xl bg-[#1B263B]/75 p-3"
+                    >
+                      <p className="mb-1 text-sm font-black text-[#B8C4D6]">
+                        {message.nickname}
+                      </p>
+                      <p className="text-[#E0E1DD]">{message.message}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <input
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      sendMessage();
+                    }
+                  }}
+                  className={inputClass}
+                  placeholder="Napiši poruku..."
+                />
+
+                <button
+                  onClick={sendMessage}
+                  className={`${primaryButtonClass} sm:w-auto`}
+                >
+                  Pošalji
+                </button>
+              </div>
+            </section>
           </div>
-        </section>
+        </div>
       </div>
     </main>
   );

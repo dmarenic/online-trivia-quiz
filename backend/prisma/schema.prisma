@@ -27,6 +27,7 @@ model GameResult {
 model Question {
   id            String   @id @default(cuid())
   category      String
+  difficulty    String   @default("medium")
   question      String
   optionA       String
   optionB       String
@@ -36,6 +37,7 @@ model Question {
   createdAt     DateTime @default(now())
 
   @@index([category])
+  @@index([difficulty])
   @@unique([category, question])
 }
 

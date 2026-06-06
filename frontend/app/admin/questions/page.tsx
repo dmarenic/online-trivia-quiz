@@ -36,6 +36,43 @@ const emptyForm = {
   correctAnswer: '',
 };
 
+const categories = [
+  'Sport',
+  'Geografija',
+  'Računarstvo',
+  'Povijest',
+  'Znanost',
+  'Književnost',
+  'Umjetnost',
+  'Glazba',
+  'Videoigre',
+  'Trendovi i aktualnosti',
+  'Poslovanje i brendovi',
+  'Životinje',
+  'Ljudsko tijelo i zdravlje',
+];
+
+const shellClass =
+  'min-h-screen bg-[radial-gradient(circle_at_50%_-10%,rgba(65,90,119,0.2),transparent_34%),linear-gradient(180deg,#0D1B2A_0%,#071523_100%)] text-[#E0E1DD]';
+
+const cardClass =
+  'rounded-[20px] border border-[#778DA9]/20 bg-[#1B263B]/88 shadow-[0_20px_70px_rgba(0,0,0,0.28)] backdrop-blur';
+
+const inputClass =
+  'w-full rounded-2xl border border-[#778DA9]/20 bg-[#0D1B2A]/70 px-4 py-3 text-[#E0E1DD] outline-none transition placeholder:text-[#778DA9] focus:border-[#778DA9]/55 focus:ring-4 focus:ring-[#778DA9]/10 disabled:cursor-not-allowed disabled:opacity-60';
+
+const primaryButtonClass =
+  'rounded-2xl bg-[#415A77] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#4f6d8f] hover:shadow-lg hover:shadow-black/20 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0';
+
+const successButtonClass =
+  'rounded-2xl bg-[#388E3C] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#43A047] hover:shadow-lg hover:shadow-black/20 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0';
+
+const dangerButtonClass =
+  'rounded-2xl bg-[#C62828] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#D32F2F] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
+
+const ghostButtonClass =
+  'rounded-2xl border border-[#778DA9]/20 px-5 py-3 font-bold text-[#B8C4D6] transition hover:border-[#778DA9]/45 hover:bg-[#415A77]/20';
+
 export default function AdminQuestionsPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [form, setForm] = useState(emptyForm);
@@ -66,37 +103,37 @@ export default function AdminQuestionsPage() {
   }
 
   useEffect(() => {
-  async function initialize() {
-    const savedUser = localStorage.getItem('user');
-    const token = localStorage.getItem('token');
+    async function initialize() {
+      const savedUser = localStorage.getItem('user');
+      const token = localStorage.getItem('token');
 
-    if (!savedUser || !token) {
-      window.location.replace('/login');
-      return;
+      if (!savedUser || !token) {
+        window.location.replace('/login');
+        return;
+      }
+
+      try {
+        const parsedUser: User = JSON.parse(savedUser);
+
+        if (parsedUser.role?.toLowerCase() !== 'admin') {
+          window.location.replace('/');
+          return;
+        }
+
+        queueMicrotask(() => {
+          setUser(parsedUser);
+        });
+
+        await fetchQuestions();
+      } catch {
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        window.location.replace('/login');
+      }
     }
 
-    try {
-      const parsedUser: User = JSON.parse(savedUser);
-
-      if (parsedUser.role?.toLowerCase() !== 'admin') {
-  window.location.replace('/');
-  return;
-}
-
-      queueMicrotask(() => {
-        setUser(parsedUser);
-      });
-
-      await fetchQuestions();
-    } catch {
-      localStorage.removeItem('user');
-      localStorage.removeItem('token');
-      window.location.replace('/login');
-    }
-  }
-
-  initialize();
-}, []);
+    initialize();
+  }, []);
 
   async function generateAiQuestions() {
     if (!user) {
@@ -249,264 +286,349 @@ export default function AdminQuestionsPage() {
     }
   }
 
-  return (
-    <main className="min-h-screen bg-zinc-900 p-8 text-white">
-      <div className="mx-auto max-w-4xl">
-      
-        <button
-  type="button"
-  onClick={() => {
+  function logout() {
     localStorage.removeItem('user');
     localStorage.removeItem('token');
     window.location.href = '/login';
-  }}
->
-  Odjava
-</button>
+  }
 
-        <h1 className="mb-8 text-4xl font-bold">Manage Questions</h1>
+  const totalCategories = new Set(questions.map((question) => question.category))
+    .size;
 
-        <section className="mb-10 rounded-2xl bg-zinc-800 p-6 shadow-xl">
-          <h2 className="mb-4 text-2xl font-bold">🤖 AI generiranje pitanja</h2>
-
-          <label className="mb-2 block text-sm font-semibold">Tema</label>
-          <input
-            className="mb-3 w-full rounded-lg bg-white p-3 text-black"
-            placeholder="Tema, npr. Nogomet, Filmovi, Povijest..."
-            value={aiTopic}
-            onChange={(e) => setAiTopic(e.target.value)}
-          />
-
-          <label className="mb-2 block text-sm font-semibold">Kategorija</label>
-          <select
-            className="mb-3 w-full rounded-lg bg-white p-3 text-black"
-            value={aiCategory}
-            onChange={(e) => setAiCategory(e.target.value)}
-          >
-            <option value="Sport">Sport</option>
-            <option value="Geografija">Geografija</option>
-            <option value="Računarstvo">Računarstvo</option>
-            <option value="Povijest">Povijest</option>
-            <option value="Znanost">Znanost</option>
-            <option value="Književnost">Književnost</option>
-            <option value="Umjetnost">Umjetnost</option>
-            <option value="Glazba">Glazba</option>
-            <option value="Videoigre">Videoigre</option>
-            <option value="Trendovi i aktualnosti">Trendovi i aktualnosti</option>
-            <option value="Poslovanje i brendovi">Poslovanje i brendovi</option>
-            <option value="Životinje">Životinje</option>
-            <option value="Ljudsko tijelo i zdravlje">Ljudsko tijelo i zdravlje</option>
-          </select>
-
-          <label className="mb-2 block text-sm font-semibold">Težina</label>
-          <select
-            className="mb-3 w-full rounded-lg bg-white p-3 text-black"
-            value={aiDifficulty}
-            onChange={(e) => setAiDifficulty(e.target.value)}
-          >
-            <option value="easy">Lako</option>
-            <option value="medium">Srednje</option>
-            <option value="hard">Teško</option>
-          </select>
-
-          <label className="mb-2 block text-sm font-semibold">
-            Broj pitanja
-          </label>
-          <input
-            type="number"
-            min={1}
-            max={20}
-            className="mb-3 w-full rounded-lg bg-white p-3 text-black"
-            value={aiCount}
-            onChange={(e) => {
-              const value = Number(e.target.value);
-              setAiCount(Math.min(20, Math.max(1, value)));
-            }}
-          />
-
-          <button
-            type="button"
-            onClick={generateAiQuestions}
-            disabled={aiLoading || !aiTopic.trim()}
-            className="w-full rounded-lg bg-purple-600 p-3 font-bold hover:bg-purple-700 disabled:bg-zinc-600"
-          >
-            {aiLoading ? 'Generiram...' : 'Generiraj AI pitanja'}
-          </button>
-
-          {aiMessage && (
-            <p className="mt-4 rounded-lg bg-zinc-700 p-3 text-center">
-              {aiMessage}
+  return (
+    <main className={`${shellClass} px-4 py-5 sm:px-6 lg:px-8`}>
+      <div className="mx-auto w-full max-w-7xl">
+        <header className="mb-8 flex flex-col justify-between gap-5 border-b border-[#778DA9]/15 pb-6 lg:flex-row lg:items-center">
+          <div>
+            <p className="mb-2 text-sm font-bold uppercase tracking-[0.24em] text-[#778DA9]">
+              Admin Console
             </p>
-          )}
+
+            <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
+              Manage Questions
+            </h1>
+
+            <p className="mt-3 max-w-2xl text-[#B8C4D6]">
+              Upravljaj bazom quiz pitanja, ručno dodaj sadržaj ili generiraj
+              nova pitanja pomoću AI alata.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            {user && (
+              <span className="rounded-2xl border border-[#778DA9]/20 bg-[#1B263B]/75 px-5 py-3 font-bold text-[#B8C4D6]">
+                {user.username}
+              </span>
+            )}
+
+            <button type="button" onClick={logout} className={dangerButtonClass}>
+              Odjava
+            </button>
+          </div>
+        </header>
+
+        <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className={`${cardClass} p-5`}>
+            <p className="text-sm font-bold text-[#778DA9]">Ukupno pitanja</p>
+            <p className="mt-2 text-4xl font-black">{questions.length}</p>
+          </div>
+
+          <div className={`${cardClass} p-5`}>
+            <p className="text-sm font-bold text-[#778DA9]">Kategorije</p>
+            <p className="mt-2 text-4xl font-black">{totalCategories}</p>
+          </div>
+
+          <div className={`${cardClass} p-5`}>
+            <p className="text-sm font-bold text-[#778DA9]">Status</p>
+            <p className="mt-2 text-4xl font-black">
+              {loadingQuestions ? 'Sync' : 'Ready'}
+            </p>
+          </div>
         </section>
 
-        <form
-          onSubmit={handleSubmit}
-          className="mb-10 rounded-2xl bg-zinc-800 p-6"
-        >
-          <h2 className="mb-4 text-2xl font-bold">
-            {editingId ? 'Uredi pitanje' : 'Dodaj novo pitanje'}
-          </h2>
-
-          <div className="grid gap-4">
-            <label className="block">
-              <span className="mb-1 block text-sm font-semibold">
-                Kategorija
-              </span>
-              <input
-                className="w-full rounded-lg bg-white p-3 text-black"
-                value={form.category}
-                onChange={(e) =>
-                  setForm({ ...form, category: e.target.value })
-                }
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-1 block text-sm font-semibold">Pitanje</span>
-              <input
-                className="w-full rounded-lg bg-white p-3 text-black"
-                value={form.question}
-                onChange={(e) =>
-                  setForm({ ...form, question: e.target.value })
-                }
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-1 block text-sm font-semibold">
-                Odgovor A
-              </span>
-              <input
-                className="w-full rounded-lg bg-white p-3 text-black"
-                value={form.optionA}
-                onChange={(e) => setForm({ ...form, optionA: e.target.value })}
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-1 block text-sm font-semibold">
-                Odgovor B
-              </span>
-              <input
-                className="w-full rounded-lg bg-white p-3 text-black"
-                value={form.optionB}
-                onChange={(e) => setForm({ ...form, optionB: e.target.value })}
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-1 block text-sm font-semibold">
-                Odgovor C
-              </span>
-              <input
-                className="w-full rounded-lg bg-white p-3 text-black"
-                value={form.optionC}
-                onChange={(e) => setForm({ ...form, optionC: e.target.value })}
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-1 block text-sm font-semibold">
-                Odgovor D
-              </span>
-              <input
-                className="w-full rounded-lg bg-white p-3 text-black"
-                value={form.optionD}
-                onChange={(e) => setForm({ ...form, optionD: e.target.value })}
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-1 block text-sm font-semibold">
-                Točan odgovor
-              </span>
-              <select
-                className="w-full rounded-lg bg-white p-3 text-black"
-                value={form.correctAnswer}
-                onChange={(e) =>
-                  setForm({ ...form, correctAnswer: e.target.value })
-                }
-              >
-                <option value="">Odaberi točan odgovor</option>
-                <option value="A">A</option>
-                <option value="B">B</option>
-                <option value="C">C</option>
-                <option value="D">D</option>
-              </select>
-            </label>
-          </div>
-
-          <button
-            type="submit"
-            className="mt-6 w-full rounded-lg bg-blue-600 p-3 font-bold hover:bg-blue-700"
-          >
-            {editingId ? 'Spremi promjene' : 'Dodaj pitanje'}
-          </button>
-
-          {editingId && (
-            <button
-              type="button"
-              onClick={() => {
-                setEditingId(null);
-                setForm(emptyForm);
-                setFormMessage('');
-              }}
-              className="mt-3 w-full rounded-lg bg-zinc-600 p-3 font-bold hover:bg-zinc-700"
-            >
-              Odustani od uređivanja
-            </button>
-          )}
-
-          {formMessage && (
-            <p className="mt-4 rounded-lg bg-zinc-700 p-3 text-center">
-              {formMessage}
-            </p>
-          )}
-        </form>
-
-        {loadingQuestions ? (
-          <p className="rounded-lg bg-zinc-800 p-4 text-center">
-            Učitavam pitanja...
-          </p>
-        ) : (
-          <div className="space-y-4">
-            {questions.map((q) => (
-              <div key={q.id} className="rounded-xl bg-zinc-800 p-4">
-                <p className="text-sm text-purple-400">{q.category}</p>
-
-                <h2 className="text-xl font-bold">{q.question}</h2>
-
-                <p className="mt-2 text-sm text-zinc-300">
-                  A: {q.optionA} | B: {q.optionB} | C: {q.optionC} | D:{' '}
-                  {q.optionD}
+        <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
+          <aside className="space-y-6">
+            <section className={`${cardClass} p-5 sm:p-6`}>
+              <div className="mb-5">
+                <p className="text-sm font-bold uppercase tracking-[0.22em] text-[#778DA9]">
+                  AI Generator
                 </p>
-
-                <p className="mt-2 text-sm text-green-400">
-                  Točan odgovor: {q.correctAnswer}
+                <h2 className="mt-2 text-2xl font-black">
+                  Generiranje pitanja
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-[#B8C4D6]">
+                  Unesi temu, kategoriju i težinu. Nova pitanja se nakon
+                  generiranja automatski učitavaju u listu.
                 </p>
-
-                <div className="mt-4 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => startEditing(q)}
-                    className="rounded-lg bg-yellow-500 px-4 py-2 font-bold text-black hover:bg-yellow-600"
-                  >
-                    Uredi
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => deleteQuestion(q.id)}
-                    className="rounded-lg bg-red-600 px-4 py-2 font-bold hover:bg-red-700"
-                  >
-                    Obriši
-                  </button>
-                </div>
               </div>
-            ))}
-          </div>
-        )}
+
+              <div className="space-y-4">
+                <label className="block">
+                  <span className="mb-2 block text-sm font-bold text-[#B8C4D6]">
+                    Tema
+                  </span>
+                  <input
+                    className={inputClass}
+                    placeholder="Nogomet, Filmovi, Povijest..."
+                    value={aiTopic}
+                    onChange={(e) => setAiTopic(e.target.value)}
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-sm font-bold text-[#B8C4D6]">
+                    Kategorija
+                  </span>
+                  <select
+                    className={inputClass}
+                    value={aiCategory}
+                    onChange={(e) => setAiCategory(e.target.value)}
+                  >
+                    {categories.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-sm font-bold text-[#B8C4D6]">
+                    Težina
+                  </span>
+                  <select
+                    className={inputClass}
+                    value={aiDifficulty}
+                    onChange={(e) => setAiDifficulty(e.target.value)}
+                  >
+                    <option value="easy">Lako</option>
+                    <option value="medium">Srednje</option>
+                    <option value="hard">Teško</option>
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-sm font-bold text-[#B8C4D6]">
+                    Broj pitanja
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={20}
+                    className={inputClass}
+                    value={aiCount}
+                    onChange={(e) => {
+                      const value = Number(e.target.value);
+                      setAiCount(Math.min(20, Math.max(1, value)));
+                    }}
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  onClick={generateAiQuestions}
+                  disabled={aiLoading || !aiTopic.trim()}
+                  className={`${primaryButtonClass} w-full`}
+                >
+                  {aiLoading ? 'Generiram...' : 'Generiraj AI pitanja'}
+                </button>
+
+                {aiMessage && (
+                  <p className="rounded-2xl border border-[#778DA9]/20 bg-[#0D1B2A]/55 p-4 text-center text-sm font-bold text-[#B8C4D6]">
+                    {aiMessage}
+                  </p>
+                )}
+              </div>
+            </section>
+
+            <form onSubmit={handleSubmit} className={`${cardClass} p-5 sm:p-6`}>
+              <div className="mb-5">
+                <p className="text-sm font-bold uppercase tracking-[0.22em] text-[#778DA9]">
+                  Question Editor
+                </p>
+                <h2 className="mt-2 text-2xl font-black">
+                  {editingId ? 'Uredi pitanje' : 'Dodaj novo pitanje'}
+                </h2>
+              </div>
+
+              <div className="grid gap-4">
+                <label className="block">
+                  <span className="mb-2 block text-sm font-bold text-[#B8C4D6]">
+                    Kategorija
+                  </span>
+                  <input
+                    className={inputClass}
+                    value={form.category}
+                    onChange={(e) =>
+                      setForm({ ...form, category: e.target.value })
+                    }
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-sm font-bold text-[#B8C4D6]">
+                    Pitanje
+                  </span>
+                  <input
+                    className={inputClass}
+                    value={form.question}
+                    onChange={(e) =>
+                      setForm({ ...form, question: e.target.value })
+                    }
+                  />
+                </label>
+
+                {(['optionA', 'optionB', 'optionC', 'optionD'] as const).map(
+                  (optionKey, index) => (
+                    <label key={optionKey} className="block">
+                      <span className="mb-2 block text-sm font-bold text-[#B8C4D6]">
+                        Odgovor {String.fromCharCode(65 + index)}
+                      </span>
+                      <input
+                        className={inputClass}
+                        value={form[optionKey]}
+                        onChange={(e) =>
+                          setForm({ ...form, [optionKey]: e.target.value })
+                        }
+                      />
+                    </label>
+                  ),
+                )}
+
+                <label className="block">
+                  <span className="mb-2 block text-sm font-bold text-[#B8C4D6]">
+                    Točan odgovor
+                  </span>
+                  <select
+                    className={inputClass}
+                    value={form.correctAnswer}
+                    onChange={(e) =>
+                      setForm({ ...form, correctAnswer: e.target.value })
+                    }
+                  >
+                    <option value="">Odaberi točan odgovor</option>
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                    <option value="D">D</option>
+                  </select>
+                </label>
+              </div>
+
+              <button type="submit" className={`${successButtonClass} mt-6 w-full`}>
+                {editingId ? 'Spremi promjene' : 'Dodaj pitanje'}
+              </button>
+
+              {editingId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingId(null);
+                    setForm(emptyForm);
+                    setFormMessage('');
+                  }}
+                  className={`${ghostButtonClass} mt-3 w-full`}
+                >
+                  Odustani od uređivanja
+                </button>
+              )}
+
+              {formMessage && (
+                <p className="mt-4 rounded-2xl border border-[#778DA9]/20 bg-[#0D1B2A]/55 p-4 text-center text-sm font-bold text-[#B8C4D6]">
+                  {formMessage}
+                </p>
+              )}
+            </form>
+          </aside>
+
+          <section className={`${cardClass} p-5 sm:p-6`}>
+            <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+              <div>
+                <p className="text-sm font-bold uppercase tracking-[0.22em] text-[#778DA9]">
+                  Question Bank
+                </p>
+                <h2 className="mt-2 text-3xl font-black">Lista pitanja</h2>
+              </div>
+
+              <span className="rounded-full border border-[#778DA9]/20 bg-[#415A77]/20 px-4 py-2 text-sm font-black text-[#B8C4D6]">
+                {questions.length} pitanja
+              </span>
+            </div>
+
+            {loadingQuestions ? (
+              <p className="rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/45 p-5 text-center text-[#B8C4D6]">
+                Učitavam pitanja...
+              </p>
+            ) : questions.length === 0 ? (
+              <p className="rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/45 p-5 text-center text-[#778DA9]">
+                Još nema pitanja u bazi.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {questions.map((q) => (
+                  <article
+                    key={q.id}
+                    className="rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/55 p-4 transition hover:border-[#778DA9]/35 hover:bg-[#0D1B2A]/75"
+                  >
+                    <div className="mb-3 flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                      <div>
+                        <span className="inline-flex rounded-full border border-[#778DA9]/20 bg-[#415A77]/20 px-3 py-1 text-xs font-black uppercase tracking-wider text-[#B8C4D6]">
+                          {q.category}
+                        </span>
+
+                        <h3 className="mt-3 text-xl font-black leading-snug">
+                          {q.question}
+                        </h3>
+                      </div>
+
+                      <span className="rounded-full border border-[#388E3C]/30 bg-[#388E3C]/15 px-3 py-1 text-xs font-black uppercase tracking-wider text-[#75d27a]">
+                        Correct: {q.correctAnswer}
+                      </span>
+                    </div>
+
+                    <div className="grid gap-2 md:grid-cols-2">
+                      {[
+                        ['A', q.optionA],
+                        ['B', q.optionB],
+                        ['C', q.optionC],
+                        ['D', q.optionD],
+                      ].map(([label, value]) => (
+                        <div
+                          key={label}
+                          className={`rounded-2xl border p-3 text-sm ${
+                            q.correctAnswer === label
+                              ? 'border-[#388E3C]/35 bg-[#388E3C]/15 text-[#E0E1DD]'
+                              : 'border-[#778DA9]/15 bg-[#1B263B]/50 text-[#B8C4D6]'
+                          }`}
+                        >
+                          <b>{label}:</b> {value}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() => startEditing(q)}
+                        className={primaryButtonClass}
+                      >
+                        Uredi
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => deleteQuestion(q.id)}
+                        className={dangerButtonClass}
+                      >
+                        Obriši
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
       </div>
     </main>
   );

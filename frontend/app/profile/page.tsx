@@ -75,6 +75,24 @@ function getAuthHeaders() {
   };
 }
 
+const shellClass =
+  'min-h-screen bg-[radial-gradient(circle_at_50%_-10%,rgba(65,90,119,0.2),transparent_34%),linear-gradient(180deg,#0D1B2A_0%,#071523_100%)] text-[#E0E1DD]';
+
+const cardClass =
+  'rounded-[20px] border border-[#778DA9]/20 bg-[#1B263B]/88 shadow-[0_20px_70px_rgba(0,0,0,0.28)] backdrop-blur';
+
+const inputClass =
+  'w-full rounded-2xl border border-[#778DA9]/20 bg-[#0D1B2A]/70 px-4 py-3 text-[#E0E1DD] outline-none transition placeholder:text-[#778DA9] focus:border-[#778DA9]/55 focus:ring-4 focus:ring-[#778DA9]/10';
+
+const primaryButtonClass =
+  'rounded-2xl bg-[#415A77] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#4f6d8f] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
+
+const successButtonClass =
+  'rounded-2xl bg-[#388E3C] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#43A047] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
+
+const dangerButtonClass =
+  'rounded-2xl bg-[#C62828] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#D32F2F] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
+
 export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
   const [results, setResults] = useState<GameResult[]>([]);
@@ -211,7 +229,9 @@ export default function ProfilePage() {
   const xpForCurrentLevel = (level - 1) * 1000;
   const xpProgress = xp - xpForCurrentLevel;
   const progressPercent = Math.min((xpProgress / 1000) * 100, 100);
-
+  const avatarSeed = encodeURIComponent(
+  (user?.avatar || user?.username || "Player").trim()
+);
   const chartData = results
     .slice()
     .reverse()
@@ -220,264 +240,346 @@ export default function ProfilePage() {
       name: `Igra ${index + 1}`,
       score: result.score,
     }));
+    
 
   return (
-    <main className="min-h-screen bg-zinc-900 p-8 text-white">
-      <div className="mx-auto max-w-4xl rounded-2xl bg-zinc-800 p-8 shadow-xl">
-        <Link href="/">← Nazad</Link>
+    <main className={`${shellClass} px-4 py-5 sm:px-6 lg:px-8`}>
+      <div className="mx-auto w-full max-w-7xl">
+        <header className="mb-8 flex flex-col justify-between gap-4 rounded-[20px] border border-[#778DA9]/15 bg-[#1B263B]/55 px-4 py-4 backdrop-blur sm:flex-row sm:items-center sm:px-6">
+          <Link
+            href="/"
+            className="rounded-full border border-[#778DA9]/20 px-4 py-2 text-sm font-bold text-[#B8C4D6] transition hover:border-[#778DA9]/45 hover:bg-[#415A77]/20"
+          >
+            ← Nazad
+          </Link>
 
-        <h1 className="mb-6 text-center text-4xl font-bold">Profil</h1>
+          <nav className="flex flex-wrap gap-3">
+
+            <Link
+              href="/achievements"
+              className={primaryButtonClass}
+            >
+              Achievementi
+            </Link>
+          </nav>
+        </header>
 
         {user && (
-          <div className="mb-8 rounded-xl bg-zinc-700 p-6 text-center">
-            <Image
-  src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${
-    user.avatar || user.username
-  }`}
-  alt="Avatar"
+          <section className={`${cardClass} mb-6 overflow-hidden`}>
+            <div className="grid gap-0 lg:grid-cols-[360px_1fr]">
+              <div className="border-b border-[#778DA9]/15 bg-[#0D1B2A]/35 p-6 text-center lg:border-b-0 lg:border-r">
+            
+
+                <Image
+  src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${avatarSeed}`}
+  alt={user.username}
   width={128}
   height={128}
-  className="mx-auto mb-4 h-32 w-32 rounded-full bg-zinc-800"
+  className="mx-auto mb-4 h-32 w-32 rounded-full bg-[#0D1B2A] ring-4 ring-[#778DA9]/20"
   unoptimized
 />
 
-            <p>
-              <b>Username:</b> {user.username}
-            </p>
+                <p className="text-sm font-bold uppercase tracking-[0.22em] text-[#778DA9]">
+                  Player Profile
+                </p>
+                <h1 className="mt-2 truncate text-4xl font-black tracking-tight">
+                  {user.username}
+                </h1>
+                <p className="mt-2 truncate text-[#B8C4D6]">{user.email}</p>
 
-            <p className="mb-4">
-              <b>Email:</b> {user.email}
-            </p>
-
-            <div className="mt-4 rounded-xl bg-zinc-800 p-4">
-              <p className="mb-2 text-xl font-bold">⭐ Level {level}</p>
-
-              <div className="mb-2 h-4 w-full rounded-full bg-zinc-700">
-                <div
-                  className="h-4 rounded-full bg-yellow-500"
-                  style={{
-                    width: `${progressPercent}%`,
-                  }}
-                />
+                <div className="mt-6 rounded-2xl border border-[#778DA9]/15 bg-[#1B263B]/70 p-4">
+                  <p className="text-sm font-bold text-[#B8C4D6]">Daily Streak</p>
+                  <p className="mt-1 text-4xl font-black">
+                    {user.dailyStreak || 0}
+                    <span className="ml-2 text-base text-[#778DA9]">dana</span>
+                  </p>
+                </div>
               </div>
 
-              <p className="text-sm text-zinc-400">{xpProgress} / 1000 XP</p>
-            </div>
+              <div className="p-6">
+                <div className="mb-6">
+                  <p className="text-sm font-bold uppercase tracking-[0.22em] text-[#778DA9]">
+                    Level Progress
+                  </p>
 
-            <div className="mt-4 rounded-xl bg-orange-600 p-4 text-center">
-              <p className="text-xl font-bold">🔥 Daily Streak</p>
-              <p className="text-3xl font-bold">
-                {user.dailyStreak || 0} dana
-              </p>
-            </div>
+                  <div className="mt-3 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+                    <div>
+                      <h2 className="text-4xl font-black">Level {level}</h2>
+                      <p className="mt-1 text-[#B8C4D6]">
+                        {xpProgress} / 1000 XP do sljedećeg levela
+                      </p>
+                    </div>
 
-            <div className="mt-4 flex gap-2">
-              <input
-                className="w-full rounded-lg p-3 text-black"
-                placeholder="Avatar seed"
-                value={avatarInput}
-                onChange={(e) => setAvatarInput(e.target.value)}
-              />
+                    <p className="rounded-full border border-[#778DA9]/20 bg-[#415A77]/20 px-4 py-2 font-black text-[#E0E1DD]">
+                      {xp} XP ukupno
+                    </p>
+                  </div>
 
-              <button
-                onClick={updateAvatar}
-                className="rounded-lg bg-blue-600 px-4 font-bold hover:bg-blue-700"
-              >
-                Spremi
-              </button>
-            </div>
-          </div>
-        )}
+                  <div className="mt-5 h-4 w-full overflow-hidden rounded-full bg-[#0D1B2A]/80">
+                    <div
+                      className="h-full rounded-full bg-[#388E3C] transition-all duration-500"
+                      style={{
+                        width: `${progressPercent}%`,
+                      }}
+                    />
+                  </div>
+                </div>
 
-        {stats && (
-          <section className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="rounded-2xl bg-zinc-700 p-5 text-center shadow">
-              <p className="text-sm text-zinc-400">Ukupno igara</p>
-              <p className="text-3xl font-bold">{stats.totalGames}</p>
-            </div>
+                <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                  <input
+                    className={inputClass}
+                    placeholder="Avatar seed"
+                    value={avatarInput}
+                    onChange={(e) => setAvatarInput(e.target.value)}
+                  />
 
-            <div className="rounded-2xl bg-zinc-700 p-5 text-center shadow">
-              <p className="text-sm text-zinc-400">Najbolji rezultat</p>
-              <p className="text-3xl font-bold">{stats.bestScore}</p>
-            </div>
-
-            <div className="rounded-2xl bg-zinc-700 p-5 text-center shadow">
-              <p className="text-sm text-zinc-400">Prosječan score</p>
-              <p className="text-3xl font-bold">{stats.averageScore}</p>
-            </div>
-
-            <div className="rounded-2xl bg-zinc-700 p-5 text-center shadow">
-              <p className="text-sm text-zinc-400">Točnost</p>
-              <p className="text-3xl font-bold">{stats.accuracy}%</p>
-            </div>
-
-            <div className="rounded-2xl bg-zinc-700 p-5 text-center shadow">
-              <p className="text-sm text-zinc-400">Ukupni XP</p>
-              <p className="text-3xl font-bold">{stats.totalXp}</p>
-            </div>
-
-            <div className="rounded-2xl bg-zinc-700 p-5 text-center shadow">
-              <p className="text-sm text-zinc-400">Achievementi</p>
-              <p className="text-3xl font-bold">{stats.achievementCount}</p>
+                  <button onClick={updateAvatar} className={successButtonClass}>
+                    Spremi avatar
+                  </button>
+                </div>
+              </div>
             </div>
           </section>
         )}
 
-        {chartData.length > 0 && (
-          <div className="mt-10 rounded-2xl bg-zinc-700 p-6">
-            <h2 className="mb-4 text-2xl font-bold">📊 Zadnjih 10 rezultata</h2>
-
-            <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="score" strokeWidth={3} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+        {stats && (
+          <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
+            {[
+              ['Ukupno igara', stats.totalGames],
+              ['Najbolji rezultat', stats.bestScore],
+              ['Prosječan score', stats.averageScore],
+              ['Točnost', `${stats.accuracy}%`],
+              ['Ukupni XP', stats.totalXp],
+              ['Achievementi', stats.achievementCount],
+            ].map(([label, value]) => (
+              <div key={label} className={`${cardClass} p-5`}>
+                <p className="text-sm font-bold text-[#778DA9]">{label}</p>
+                <p className="mt-2 text-3xl font-black">{value}</p>
+              </div>
+            ))}
+          </section>
         )}
 
-        <div className="mt-10">
-          <h2 className="mb-4 text-2xl font-bold">📜 Match History</h2>
+        <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="space-y-6">
+            {chartData.length > 0 && (
+              <section className={`${cardClass} p-5 sm:p-6`}>
+                <h2 className="mb-5 text-2xl font-black">
+                  Zadnjih 10 rezultata
+                </h2>
 
-          {matchHistory.length === 0 ? (
-            <p className="text-zinc-400">Još nema odigranih mečeva.</p>
-          ) : (
-            <div className="space-y-3">
-              {matchHistory.map((match) => (
-                <div key={match.id} className="rounded-xl bg-zinc-700 p-4">
-                  <div className="flex justify-between">
-                    <div>
-                      <p className="font-bold">
-                        {new Date(match.createdAt).toLocaleDateString('hr-HR')}
-                      </p>
-                      <p className="text-sm text-zinc-400">
-                        Mode: {match.mode}
-                      </p>
-                    </div>
-
-                    <div className="text-right">
-                      <p className="text-xl font-bold">{match.score} bodova</p>
-                      <p className="text-sm text-zinc-400">
-                        Točnost: {match.accuracy}%
-                      </p>
-                      <p className="text-sm text-zinc-400">
-                        {match.correctAnswers}/{match.totalQuestions} točno
-                      </p>
-                    </div>
-                  </div>
+                <div className="h-72 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData}>
+                      <CartesianGrid stroke="rgba(119,141,169,0.18)" />
+                      <XAxis
+                        dataKey="name"
+                        stroke="#778DA9"
+                        tick={{ fill: '#B8C4D6', fontSize: 12 }}
+                      />
+                      <YAxis
+                        allowDecimals={false}
+                        stroke="#778DA9"
+                        tick={{ fill: '#B8C4D6', fontSize: 12 }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: '#1B263B',
+                          border: '1px solid rgba(119,141,169,0.25)',
+                          borderRadius: 16,
+                          color: '#E0E1DD',
+                        }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="score"
+                        stroke="#778DA9"
+                        strokeWidth={3}
+                        dot={{ r: 4 }}
+                        activeDot={{ r: 6 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+              </section>
+            )}
 
-        {roomInvites.length > 0 && (
-          <div className="mt-8 rounded-xl bg-zinc-700 p-6">
-            <h2 className="mb-4 text-2xl font-bold">📨 Pozivnice u sobe</h2>
+            <section className={`${cardClass} p-5 sm:p-6`}>
+              <h2 className="mb-5 text-2xl font-black">Match History</h2>
 
-            <div className="space-y-3">
-              {roomInvites.map((invite) => (
-                <div key={invite.id} className="rounded-lg bg-zinc-800 p-4">
-                  <p className="mb-3">
-                    <strong>{invite.fromUser.username}</strong> te poziva u
-                    sobu <strong>{invite.roomCode}</strong>
-                  </p>
-
-                  <div className="flex gap-3">
-                    <a
-                      href={`/?room=${invite.roomCode}`}
-                      className="flex-1 rounded-lg bg-blue-600 p-3 text-center font-bold hover:bg-blue-700"
+              {matchHistory.length === 0 ? (
+                <p className="rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/45 p-5 text-[#778DA9]">
+                  Još nema odigranih mečeva.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {matchHistory.map((match) => (
+                    <div
+                      key={match.id}
+                      className="flex flex-col justify-between gap-4 rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/55 p-4 transition hover:border-[#778DA9]/35 hover:bg-[#0D1B2A]/75 sm:flex-row sm:items-center"
                     >
-                      Pridruži se sobi
-                    </a>
+                      <div>
+                        <p className="font-black">
+                          {new Date(match.createdAt).toLocaleDateString('hr-HR')}
+                        </p>
+                        <p className="mt-1 text-sm text-[#778DA9]">
+                          Mode: {match.mode}
+                        </p>
+                      </div>
 
-                    <button
-                      onClick={() => deleteInvite(invite.id)}
-                      className="rounded-lg bg-red-600 px-4 font-bold hover:bg-red-700"
-                    >
-                      Obriši
-                    </button>
-                  </div>
+                      <div className="grid grid-cols-3 gap-3 text-left sm:text-right">
+                        <div>
+                          <p className="text-sm text-[#778DA9]">Score</p>
+                          <p className="font-black">{match.score}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-[#778DA9]">Točnost</p>
+                          <p className="font-black">{match.accuracy}%</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-[#778DA9]">Točno</p>
+                          <p className="font-black">
+                            {match.correctAnswers}/{match.totalQuestions}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              )}
+            </section>
+
+            <section className={`${cardClass} p-5 sm:p-6`}>
+              <h2 className="mb-5 text-2xl font-black">Zadnje igre</h2>
+
+              {results.length === 0 ? (
+                <p className="rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/45 p-5 text-[#778DA9]">
+                  Još nema odigranih igara.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {results.map((result) => (
+                    <div
+                      key={result.id}
+                      className="flex justify-between rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/55 p-4"
+                    >
+                      <span>
+                        {new Date(result.createdAt).toLocaleDateString('hr-HR')}
+                      </span>
+                      <b>{result.score} bodova</b>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
-        )}
 
-        <div className="mt-10">
-          <h2 className="mb-4 text-2xl font-bold">🎮 Zadnje igre</h2>
+          <aside className="space-y-6">
+            {roomInvites.length > 0 && (
+              <section className={`${cardClass} p-5 sm:p-6`}>
+                <h2 className="mb-5 text-2xl font-black">Pozivnice u sobe</h2>
 
-          {results.length === 0 ? (
-            <p className="text-zinc-400">Još nema odigranih igara.</p>
-          ) : (
-            <div className="space-y-3">
-              {results.map((result) => (
-                <div
-                  key={result.id}
-                  className="flex justify-between rounded-lg bg-zinc-700 p-4"
-                >
-                  <span>
-                    {new Date(result.createdAt).toLocaleDateString('hr-HR')}
-                  </span>
-                  <b>{result.score} bodova</b>
+                <div className="space-y-3">
+                  {roomInvites.map((invite) => (
+                    <div
+                      key={invite.id}
+                      className="rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/55 p-4"
+                    >
+                      <p className="mb-4 text-[#B8C4D6]">
+                        <strong className="text-[#E0E1DD]">
+                          {invite.fromUser.username}
+                        </strong>{' '}
+                        te poziva u sobu{' '}
+                        <strong className="font-mono text-[#E0E1DD]">
+                          {invite.roomCode}
+                        </strong>
+                      </p>
+
+                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                        <a
+                          href={`/?room=${invite.roomCode}`}
+                          className={`${successButtonClass} text-center`}
+                        >
+                          Pridruži se
+                        </a>
+
+                        <button
+                          onClick={() => deleteInvite(invite.id)}
+                          className={dangerButtonClass}
+                        >
+                          Obriši
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+              </section>
+            )}
 
-        <div className="mt-10">
-          <h2 className="mb-4 text-2xl font-bold">🏅 Daily History</h2>
-
-          {dailyResults.length === 0 ? (
-            <p className="text-zinc-400">Još nema daily rezultata.</p>
-          ) : (
-            <div className="space-y-3">
-              {dailyResults.map((result) => (
-                <div
-                  key={result.id}
-                  className="flex justify-between rounded-lg bg-zinc-700 p-4"
+            <section className={`${cardClass} p-5 sm:p-6`}>
+              <div className="mb-5 flex items-center justify-between gap-3">
+                <h2 className="text-2xl font-black">Daily History</h2>
+                <Link
+                  href="/daily"
+                  className="rounded-full border border-[#778DA9]/20 px-3 py-1.5 text-sm font-bold text-[#B8C4D6] transition hover:border-[#778DA9]/45 hover:bg-[#415A77]/20"
                 >
-                  <span>
-                    {new Date(result.createdAt).toLocaleDateString('hr-HR')}
-                  </span>
-                  <b>{result.score} bodova</b>
+                  Daily
+                </Link>
+              </div>
+
+              {dailyResults.length === 0 ? (
+                <p className="rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/45 p-5 text-[#778DA9]">
+                  Još nema daily rezultata.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {dailyResults.map((result) => (
+                    <div
+                      key={result.id}
+                      className="flex justify-between rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/55 p-4"
+                    >
+                      <span>
+                        {new Date(result.createdAt).toLocaleDateString('hr-HR')}
+                      </span>
+                      <b>{result.score} bodova</b>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+              )}
+            </section>
 
-        <a
-          href="/achievements"
-          className="mt-8 block rounded-lg bg-yellow-500 p-3 text-center font-bold text-black hover:bg-yellow-400"
-        >
-          🏆 Pogledaj sve achievemente
-        </a>
-
-        <div className="mt-10">
-          <h2 className="mb-4 text-2xl font-bold">🏆 Achievementi</h2>
-
-          {achievements.length === 0 ? (
-            <p className="text-zinc-400">Još nema postignuća.</p>
-          ) : (
-            <div className="space-y-3">
-              {achievements.map((achievement) => (
-                <div
-                  key={achievement.id}
-                  className="rounded-lg bg-yellow-600 p-4 text-black"
+            <section className={`${cardClass} p-5 sm:p-6`}>
+              <div className="mb-5 flex items-center justify-between gap-3">
+                <h2 className="text-2xl font-black">Achievementi</h2>
+                <Link
+                  href="/achievements"
+                  className="rounded-full border border-[#778DA9]/20 px-3 py-1.5 text-sm font-bold text-[#B8C4D6] transition hover:border-[#778DA9]/45 hover:bg-[#415A77]/20"
                 >
-                  <p className="font-bold">{achievement.title}</p>
-                  <p>{achievement.description}</p>
+                  Svi
+                </Link>
+              </div>
+
+              {achievements.length === 0 ? (
+                <p className="rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/45 p-5 text-[#778DA9]">
+                  Još nema postignuća.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {achievements.map((achievement) => (
+                    <div
+                      key={achievement.id}
+                      className="rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/55 p-4 transition hover:border-[#778DA9]/35 hover:bg-[#0D1B2A]/75"
+                    >
+                      <p className="font-black">{achievement.title}</p>
+                      <p className="mt-1 text-sm leading-6 text-[#B8C4D6]">
+                        {achievement.description}
+                      </p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
+              )}
+            </section>
+          </aside>
         </div>
       </div>
     </main>

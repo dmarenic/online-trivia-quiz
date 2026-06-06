@@ -187,30 +187,29 @@ export class UsersController {
     }
 
     await this.prisma.roomInvite.deleteMany({
-  where: {
-    OR: [
-      {
+      where: {
+        OR: [
+          {
+            fromUserId: user.id,
+            toUserId: body.toUserId,
+            roomCode: body.roomCode,
+          },
+          {
+            createdAt: {
+              lt: new Date(Date.now() - 30000),
+            },
+          },
+        ],
+      },
+    });
+
+    return this.prisma.roomInvite.create({
+      data: {
         fromUserId: user.id,
         toUserId: body.toUserId,
         roomCode: body.roomCode,
       },
-      {
-        createdAt: {
-          lt: new Date(Date.now() - 30000),
-        },
-      },
-    ],
-  },
-});
-
-return this.prisma.roomInvite.create({
-  data: {
-    fromUserId: user.id,
-    toUserId: body.toUserId,
-    roomCode: body.roomCode,
-  },
-});
-    
+    });
   }
 
   @UseGuards(JwtAuthGuard)
@@ -233,82 +232,82 @@ return this.prisma.roomInvite.create({
   }
 
   @UseGuards(JwtAuthGuard)
-@Get('me/room-invites')
-async getRoomInvites(@CurrentUser() user: any) {
-  const expiresAt = new Date(Date.now() - 30000);
+  @Get('me/room-invites')
+  async getRoomInvites(@CurrentUser() user: any) {
+    const expiresAt = new Date(Date.now() - 30000);
 
-  await this.prisma.roomInvite.deleteMany({
-    where: {
-      createdAt: {
-        lt: expiresAt,
-      },
-    },
-  });
-
-  return this.prisma.roomInvite.findMany({
-    where: {
-      toUserId: user.id,
-      createdAt: {
-        gte: expiresAt,
-      },
-    },
-    include: {
-      fromUser: {
-        select: {
-          id: true,
-          username: true,
+    await this.prisma.roomInvite.deleteMany({
+      where: {
+        createdAt: {
+          lt: expiresAt,
         },
       },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
-}
+    });
+
+    return this.prisma.roomInvite.findMany({
+      where: {
+        toUserId: user.id,
+        createdAt: {
+          gte: expiresAt,
+        },
+      },
+      include: {
+        fromUser: {
+          select: {
+            id: true,
+            username: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 
   @UseGuards(JwtAuthGuard)
-@Post('me/friends')
-async addFriend(@CurrentUser() user: any, @Body() body: AddFriendDto) {
-  const friend = await this.prisma.user.findUnique({
-    where: { username: body.username },
-  });
+  @Post('me/friends')
+  async addFriend(@CurrentUser() user: any, @Body() body: AddFriendDto) {
+    const friend = await this.prisma.user.findUnique({
+      where: { username: body.username },
+    });
 
-  if (!friend) {
-    return { message: 'Korisnik ne postoji', success: false };
+    if (!friend) {
+      return { message: 'Korisnik ne postoji', success: false };
+    }
+
+    if (friend.id === user.id) {
+      return { message: 'Ne možeš dodati sebe', success: false };
+    }
+
+    const existing = await this.prisma.friend.findFirst({
+      where: {
+        OR: [
+          { senderId: user.id, receiverId: friend.id },
+          { senderId: friend.id, receiverId: user.id },
+        ],
+      },
+    });
+
+    if (existing?.status === 'accepted') {
+      return { message: 'Već ste prijatelji', success: false };
+    }
+
+    if (existing?.status === 'pending') {
+      return { message: 'Zahtjev je već poslan.', success: false };
+    }
+
+    await this.prisma.friend.create({
+      data: {
+        senderId: user.id,
+        receiverId: friend.id,
+        status: 'pending',
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Zahtjev za prijateljstvo poslan.',
+    };
   }
-
-  if (friend.id === user.id) {
-    return { message: 'Ne možeš dodati sebe', success: false };
-  }
-
-  const existing = await this.prisma.friend.findFirst({
-    where: {
-      OR: [
-        { senderId: user.id, receiverId: friend.id },
-        { senderId: friend.id, receiverId: user.id },
-      ],
-    },
-  });
-
-  if (existing?.status === 'accepted') {
-    return { message: 'Već ste prijatelji', success: false };
-  }
-
-  if (existing?.status === 'pending') {
-    return { message: 'Zahtjev je već poslan.', success: false };
-  }
-
-  await this.prisma.friend.create({
-    data: {
-      senderId: user.id,
-      receiverId: friend.id,
-      status: 'pending',
-    },
-  });
-
-  return {
-    success: true,
-    message: 'Zahtjev za prijateljstvo poslan.',
-  };
-}
 
   @UseGuards(JwtAuthGuard)
   @Get('me/achievements')
@@ -389,96 +388,96 @@ async addFriend(@CurrentUser() user: any, @Body() body: AddFriendDto) {
   }
 
   @UseGuards(JwtAuthGuard)
-@Get('me/friends')
-async getFriends(@CurrentUser() user: any) {
-  const friends = await this.prisma.friend.findMany({
-    where: {
-      status: 'accepted',
-      OR: [{ senderId: user.id }, { receiverId: user.id }],
-    },
-    include: {
-      sender: {
-        select: { id: true, username: true, avatar: true },
+  @Get('me/friends')
+  async getFriends(@CurrentUser() user: any) {
+    const friends = await this.prisma.friend.findMany({
+      where: {
+        status: 'accepted',
+        OR: [{ senderId: user.id }, { receiverId: user.id }],
       },
-      receiver: {
-        select: { id: true, username: true, avatar: true },
+      include: {
+        sender: {
+          select: { id: true, username: true, avatar: true },
+        },
+        receiver: {
+          select: { id: true, username: true, avatar: true },
+        },
       },
-    },
-  });
+    });
 
-  const incomingRequests = await this.prisma.friend.findMany({
-    where: {
-      receiverId: user.id,
-      status: 'pending',
-    },
-    include: {
-      sender: {
-        select: { id: true, username: true, avatar: true },
+    const incomingRequests = await this.prisma.friend.findMany({
+      where: {
+        receiverId: user.id,
+        status: 'pending',
       },
-      receiver: {
-        select: { id: true, username: true, avatar: true },
+      include: {
+        sender: {
+          select: { id: true, username: true, avatar: true },
+        },
+        receiver: {
+          select: { id: true, username: true, avatar: true },
+        },
       },
-    },
-  });
+    });
 
-  const outgoingRequests = await this.prisma.friend.findMany({
-    where: {
-      senderId: user.id,
-      status: 'pending',
-    },
-    include: {
-      sender: {
-        select: { id: true, username: true, avatar: true },
+    const outgoingRequests = await this.prisma.friend.findMany({
+      where: {
+        senderId: user.id,
+        status: 'pending',
       },
-      receiver: {
-        select: { id: true, username: true, avatar: true },
+      include: {
+        sender: {
+          select: { id: true, username: true, avatar: true },
+        },
+        receiver: {
+          select: { id: true, username: true, avatar: true },
+        },
       },
-    },
-  });
+    });
 
-  return {
-    friends,
-    incomingRequests,
-    outgoingRequests,
-  };
-}
-
-@UseGuards(JwtAuthGuard)
-@Patch('me/friends/:requestId/accept')
-async acceptFriendRequest(
-  @CurrentUser() user: any,
-  @Param('requestId') requestId: string,
-) {
-  const request = await this.prisma.friend.findUnique({
-    where: { id: requestId },
-  });
-
-  if (!request || request.receiverId !== user.id) {
-    throw new ForbiddenException('Nemaš pristup ovom zahtjevu.');
+    return {
+      friends,
+      incomingRequests,
+      outgoingRequests,
+    };
   }
 
-  return this.prisma.friend.update({
-    where: { id: requestId },
-    data: { status: 'accepted' },
-  });
-}
+  @UseGuards(JwtAuthGuard)
+  @Patch('me/friends/:requestId/accept')
+  async acceptFriendRequest(
+    @CurrentUser() user: any,
+    @Param('requestId') requestId: string,
+  ) {
+    const request = await this.prisma.friend.findUnique({
+      where: { id: requestId },
+    });
 
-@UseGuards(JwtAuthGuard)
-@Delete('me/friends/:requestId/reject')
-async rejectFriendRequest(
-  @CurrentUser() user: any,
-  @Param('requestId') requestId: string,
-) {
-  const request = await this.prisma.friend.findUnique({
-    where: { id: requestId },
-  });
+    if (!request || request.receiverId !== user.id) {
+      throw new ForbiddenException('Nemaš pristup ovom zahtjevu.');
+    }
 
-  if (!request || request.receiverId !== user.id) {
-    throw new ForbiddenException('Nemaš pristup ovom zahtjevu.');
+    return this.prisma.friend.update({
+      where: { id: requestId },
+      data: { status: 'accepted' },
+    });
   }
 
-  return this.prisma.friend.delete({
-    where: { id: requestId },
-  });
-}
+  @UseGuards(JwtAuthGuard)
+  @Delete('me/friends/:requestId/reject')
+  async rejectFriendRequest(
+    @CurrentUser() user: any,
+    @Param('requestId') requestId: string,
+  ) {
+    const request = await this.prisma.friend.findUnique({
+      where: { id: requestId },
+    });
+
+    if (!request || request.receiverId !== user.id) {
+      throw new ForbiddenException('Nemaš pristup ovom zahtjevu.');
+    }
+
+    return this.prisma.friend.delete({
+      where: { id: requestId },
+    });
+  }
 }

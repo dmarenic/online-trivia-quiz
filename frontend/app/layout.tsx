@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Online Trivia Quiz',
-  description: 'Multiplayer online trivia quiz game',
+  title: "Online Trivia Quiz",
+  description: "Multiplayer online trivia quiz game",
 };
 
 export default function RootLayout({

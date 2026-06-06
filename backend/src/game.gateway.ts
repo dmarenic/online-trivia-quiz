@@ -42,6 +42,7 @@ type Room = {
   questions: QuizQuestion[];
   questionCount: number;
   timePerQuestion: number;
+  selectedDifficulty: string;
 };
 
 type SocketUser = {
@@ -261,30 +262,34 @@ export class GameGateway implements OnGatewayDisconnect {
     this.timers.set(room.code, timer);
   }
 
-  private async getQuestionsForCategory(category: string) {
-    const dbQuestions = await this.prisma.question.findMany({
-      where:
-        category === 'All'
-          ? {}
-          : {
-              category,
-            },
-    });
+  private async getQuestionsForSettings(category: string, difficulty: string) {
+  const where: any = {};
 
-    return dbQuestions.map((question) => ({
-      id: question.id,
-      category: question.category,
-      question: question.question,
-      options: shuffleArray([
-        question.optionA,
-        question.optionB,
-        question.optionC,
-        question.optionD,
-      ]),
-      correctAnswer: question.correctAnswer,
-    }));
+  if (category !== 'All') {
+    where.category = category;
   }
 
+  if (difficulty !== 'All') {
+    where.difficulty = difficulty;
+  }
+
+  const dbQuestions = await this.prisma.question.findMany({
+    where,
+  });
+
+  return dbQuestions.map((question) => ({
+    id: question.id,
+    category: question.category,
+    question: question.question,
+    options: shuffleArray([
+      question.optionA,
+      question.optionB,
+      question.optionC,
+      question.optionD,
+    ]),
+    correctAnswer: question.correctAnswer,
+  }));
+}
   private async unlockAchievement(
     userId: string,
     title: string,
@@ -498,20 +503,20 @@ export class GameGateway implements OnGatewayDisconnect {
     }
 
     await this.prisma.roomInvite.deleteMany({
-  where: {
-    OR: [
-      {
-        toUserId: data.toUserId,
-        roomCode,
+      where: {
+        OR: [
+          {
+            toUserId: data.toUserId,
+            roomCode,
+          },
+          {
+            createdAt: {
+              lt: new Date(Date.now() - 30000),
+            },
+          },
+        ],
       },
-      {
-        createdAt: {
-          lt: new Date(Date.now() - 30000),
-        },
-      },
-    ],
-  },
-});
+    });
 
     const invite = await this.prisma.roomInvite.create({
       data: {
@@ -529,26 +534,24 @@ export class GameGateway implements OnGatewayDisconnect {
     });
 
     this.server
-  .to(`user_${data.toUserId}`)
-  .emit('room_invite_received', invite);
-
-setTimeout(async () => {
-  try {
-    await this.prisma.roomInvite.deleteMany({
-      where: {
-        id: invite.id,
-      },
-    });
-
-    this.server
       .to(`user_${data.toUserId}`)
-      .emit('room_invite_expired', {
-        inviteId: invite.id,
-      });
-  } catch (error) {
-    console.error(error);
-  }
-}, 30000);
+      .emit('room_invite_received', invite);
+
+    setTimeout(async () => {
+      try {
+        await this.prisma.roomInvite.deleteMany({
+          where: {
+            id: invite.id,
+          },
+        });
+
+        this.server.to(`user_${data.toUserId}`).emit('room_invite_expired', {
+          inviteId: invite.id,
+        });
+      } catch (error) {
+        console.error(error);
+      }
+    }, 30000);
 
     return invite;
   }
@@ -599,6 +602,7 @@ setTimeout(async () => {
       started: false,
       acceptingAnswers: false,
       selectedCategory: 'All',
+      selectedDifficulty: 'All',
       questionStartTime: 0,
       questions: [],
       questionCount,
@@ -612,167 +616,162 @@ setTimeout(async () => {
   }
 
   @SubscribeMessage('join_room')
-joinRoom(
-  @MessageBody()
-  data: {
-    roomCode: string;
-    nickname: string;
-    reconnect?: boolean;
-  },
-  @ConnectedSocket() client: Socket,
-) {
-  if (
-    !data ||
-    !this.isValidRoomCode(data.roomCode) ||
-    !this.isValidNickname(data.nickname)
+  joinRoom(
+    @MessageBody()
+    data: {
+      roomCode: string;
+      nickname: string;
+      reconnect?: boolean;
+    },
+    @ConnectedSocket() client: Socket,
   ) {
-    client.emit('error_message', 'Neispravan kod sobe ili nadimak.');
-    return;
-  }
-
-  const authUser = this.getUserFromSocket(client);
-  const userId = authUser?.id;
-  const roomCode = this.normalizeRoomCode(data.roomCode);
-  const nickname = this.sanitizeText(data.nickname);
-
-  const room = this.rooms.get(roomCode);
-
-  if (!room) {
-    client.emit('error_message', 'Soba nije pronađena.');
-    return;
-  }
-
-  const reconnectingPlayer = room.players.find((player) => {
-    if (userId && player.userId) {
-      return player.userId === userId;
+    if (
+      !data ||
+      !this.isValidRoomCode(data.roomCode) ||
+      !this.isValidNickname(data.nickname)
+    ) {
+      client.emit('error_message', 'Neispravan kod sobe ili nadimak.');
+      return;
     }
 
-    return player.nickname === nickname;
-  });
+    const authUser = this.getUserFromSocket(client);
+    const userId = authUser?.id;
+    const roomCode = this.normalizeRoomCode(data.roomCode);
+    const nickname = this.sanitizeText(data.nickname);
 
-  if (reconnectingPlayer) {
-    reconnectingPlayer.id = client.id;
-    reconnectingPlayer.connected = true;
-    client.join(room.code);
+    const room = this.rooms.get(roomCode);
 
-    if (room.hostUserId && userId && room.hostUserId === userId) {
-      room.hostId = client.id;
-      reconnectingPlayer.isReady = true;
+    if (!room) {
+      client.emit('error_message', 'Soba nije pronađena.');
+      return;
+    }
+
+    const reconnectingPlayer = room.players.find((player) => {
+      if (userId && player.userId) {
+        return player.userId === userId;
+      }
+
+      return player.nickname === nickname;
+    });
+
+    if (reconnectingPlayer) {
+      reconnectingPlayer.id = client.id;
+      reconnectingPlayer.connected = true;
+      client.join(room.code);
+
+      if (room.hostUserId && userId && room.hostUserId === userId) {
+        room.hostId = client.id;
+        reconnectingPlayer.isReady = true;
+      }
+
+      if (room.started) {
+        const elapsedSeconds = Math.floor(
+          (Date.now() - room.questionStartTime) / 1000,
+        );
+
+        const timeLeft = Math.max(0, room.timePerQuestion - elapsedSeconds);
+
+        client.emit('reconnected_to_game', {
+          room,
+          question: room.questions[room.currentQuestionIndex]
+            ? toPublicQuestion(room.questions[room.currentQuestionIndex])
+            : null,
+          questionNumber: room.currentQuestionIndex + 1,
+          totalQuestions: room.questions.length,
+          answeredCount: this.getAnsweredCount(room),
+          totalPlayers: room.players.length,
+          timeLeft,
+          acceptingAnswers: room.acceptingAnswers,
+          hasAnswered: reconnectingPlayer.answeredQuestions.includes(
+            room.currentQuestionIndex,
+          ),
+        });
+      } else {
+        client.emit('room_updated', room);
+      }
+
+      this.server.to(room.code).emit('room_updated', room);
+      return;
     }
 
     if (room.started) {
-      const elapsedSeconds = Math.floor(
-        (Date.now() - room.questionStartTime) / 1000,
-      );
-
-      const timeLeft = Math.max(
-        0,
-        room.timePerQuestion - elapsedSeconds,
-      );
-
-      client.emit('reconnected_to_game', {
-        room,
-        question: room.questions[room.currentQuestionIndex]
-          ? toPublicQuestion(room.questions[room.currentQuestionIndex])
-          : null,
-        questionNumber: room.currentQuestionIndex + 1,
-        totalQuestions: room.questions.length,
-        answeredCount: this.getAnsweredCount(room),
-        totalPlayers: room.players.length,
-        timeLeft,
-        acceptingAnswers: room.acceptingAnswers,
-        hasAnswered: reconnectingPlayer.answeredQuestions.includes(
-          room.currentQuestionIndex,
-        ),
-      });
-    } else {
-      client.emit('room_updated', room);
+      client.emit('error_message', 'Igra je već počela.');
+      return;
     }
 
+    const existingPlayer = room.players.find(
+      (player) => player.id === client.id,
+    );
+
+    if (existingPlayer) {
+      client.emit('room_updated', room);
+      return;
+    }
+
+    const player: Player = {
+      id: client.id,
+      nickname,
+      score: 0,
+      correctAnswers: 0,
+      answeredQuestions: [],
+      userId,
+      isReady: false,
+      connected: true,
+    };
+
+    room.players.push(player);
+    client.join(room.code);
+
+    this.server.to(room.code).emit('player_joined', room);
     this.server.to(room.code).emit('room_updated', room);
-    return;
   }
+  @SubscribeMessage('kick_player')
+  kickPlayer(
+    @MessageBody()
+    data: {
+      roomCode: string;
+      playerId: string;
+    },
+    @ConnectedSocket() client: Socket,
+  ) {
+    if (!data || !this.isValidRoomCode(data.roomCode)) {
+      client.emit('error_message', 'Neispravan kod sobe.');
+      return;
+    }
 
-  if (room.started) {
-    client.emit('error_message', 'Igra je već počela.');
-    return;
+    const roomCode = this.normalizeRoomCode(data.roomCode);
+    const room = this.rooms.get(roomCode);
+
+    if (!room) {
+      client.emit('error_message', 'Soba nije pronađena.');
+      return;
+    }
+
+    if (!this.isRoomHost(room, client)) {
+      client.emit('error_message', 'Samo host može izbacivati igrače.');
+      return;
+    }
+
+    if (data.playerId === room.hostId) {
+      client.emit('error_message', 'Ne možeš izbaciti hosta.');
+      return;
+    }
+
+    const kickedPlayer = room.players.find(
+      (player) => player.id === data.playerId,
+    );
+
+    if (!kickedPlayer) {
+      client.emit('error_message', 'Igrač nije pronađen.');
+      return;
+    }
+
+    room.players = room.players.filter((player) => player.id !== data.playerId);
+
+    this.server.to(data.playerId).emit('kicked_from_room');
+
+    this.server.to(room.code).emit('room_updated', room);
   }
-
-  const existingPlayer = room.players.find(
-    (player) => player.id === client.id,
-  );
-
-  if (existingPlayer) {
-    client.emit('room_updated', room);
-    return;
-  }
-
-  const player: Player = {
-    id: client.id,
-    nickname,
-    score: 0,
-    correctAnswers: 0,
-    answeredQuestions: [],
-    userId,
-    isReady: false,
-    connected: true,
-  };
-
-  room.players.push(player);
-  client.join(room.code);
-
-  this.server.to(room.code).emit('player_joined', room);
-  this.server.to(room.code).emit('room_updated', room);
-}
-@SubscribeMessage('kick_player')
-kickPlayer(
-  @MessageBody()
-  data: {
-    roomCode: string;
-    playerId: string;
-  },
-  @ConnectedSocket() client: Socket,
-) {
-  if (!data || !this.isValidRoomCode(data.roomCode)) {
-    client.emit('error_message', 'Neispravan kod sobe.');
-    return;
-  }
-
-  const roomCode = this.normalizeRoomCode(data.roomCode);
-  const room = this.rooms.get(roomCode);
-
-  if (!room) {
-    client.emit('error_message', 'Soba nije pronađena.');
-    return;
-  }
-
-  if (!this.isRoomHost(room, client)) {
-    client.emit('error_message', 'Samo host može izbacivati igrače.');
-    return;
-  }
-
-  if (data.playerId === room.hostId) {
-    client.emit('error_message', 'Ne možeš izbaciti hosta.');
-    return;
-  }
-
-  const kickedPlayer = room.players.find(
-    (player) => player.id === data.playerId,
-  );
-
-  if (!kickedPlayer) {
-    client.emit('error_message', 'Igrač nije pronađen.');
-    return;
-  }
-
-  room.players = room.players.filter(
-    (player) => player.id !== data.playerId,
-  );
-
-  this.server.to(data.playerId).emit('kicked_from_room');
-
-  this.server.to(room.code).emit('room_updated', room);
-}
   @SubscribeMessage('set_category')
   setCategory(
     @MessageBody() data: { roomCode: string; category: string },
@@ -894,9 +893,10 @@ kickPlayer(
     room.questionCount = questionCount;
     room.timePerQuestion = timePerQuestion;
 
-    const allQuestions = await this.getQuestionsForCategory(
-      room.selectedCategory,
-    );
+    const allQuestions = await this.getQuestionsForSettings(
+  room.selectedCategory,
+  room.selectedDifficulty,
+);
 
     const selectedQuestions = shuffleArray(allQuestions).slice(
       0,
@@ -938,6 +938,37 @@ kickPlayer(
 
     this.startQuestionTimer(room);
   }
+
+  @SubscribeMessage('set_difficulty')
+setDifficulty(
+  @MessageBody() data: { roomCode: string; difficulty: string },
+  @ConnectedSocket() client: Socket,
+) {
+  if (!data || !this.isValidRoomCode(data.roomCode)) {
+    client.emit('error_message', 'Neispravni podaci za težinu.');
+    return;
+  }
+
+  const roomCode = this.normalizeRoomCode(data.roomCode);
+  const difficulty = this.sanitizeText(data.difficulty);
+  const room = this.rooms.get(roomCode);
+
+  if (!room) return;
+
+  if (!this.isRoomHost(room, client)) {
+    client.emit('error_message', 'Samo host može mijenjati težinu.');
+    return;
+  }
+
+  if (room.started) {
+    client.emit('error_message', 'Težina se ne može mijenjati tijekom igre.');
+    return;
+  }
+
+  room.selectedDifficulty = difficulty;
+
+  this.server.to(room.code).emit('room_updated', room);
+}
 
   @SubscribeMessage('submit_answer')
   submitAnswer(
@@ -1017,19 +1048,19 @@ kickPlayer(
     if (!room) return;
 
     if (!this.isRoomHost(room, client)) {
-  client.emit('error_message', 'Samo host može prebaciti pitanje.');
-  return;
-}
+      client.emit('error_message', 'Samo host može prebaciti pitanje.');
+      return;
+    }
 
-if (room.acceptingAnswers) {
-  client.emit(
-    'error_message',
-    `Ne možeš pokrenuti sljedeće pitanje dok svi nisu odgovorili ili vrijeme nije isteklo. (${this.getAnsweredCount(room)}/${room.players.length})`,
-  );
-  return;
-}
+    if (room.acceptingAnswers) {
+      client.emit(
+        'error_message',
+        `Ne možeš pokrenuti sljedeće pitanje dok svi nisu odgovorili ili vrijeme nije isteklo. (${this.getAnsweredCount(room)}/${room.players.length})`,
+      );
+      return;
+    }
 
-const nextIndex = room.currentQuestionIndex + 1;
+    const nextIndex = room.currentQuestionIndex + 1;
 
     if (nextIndex >= room.questions.length) {
       const oldTimer = this.timers.get(room.code);

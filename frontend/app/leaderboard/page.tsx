@@ -17,6 +17,26 @@ type GameHistory = {
   players: PlayerResult[];
 };
 
+const shellClass =
+  'min-h-screen bg-[radial-gradient(circle_at_50%_-10%,rgba(65,90,119,0.2),transparent_34%),linear-gradient(180deg,#0D1B2A_0%,#071523_100%)] text-[#E0E1DD]';
+
+const cardClass =
+  'rounded-[20px] border border-[#778DA9]/20 bg-[#1B263B]/88 shadow-[0_20px_70px_rgba(0,0,0,0.28)] backdrop-blur';
+
+const primaryButtonClass =
+  'rounded-2xl bg-[#415A77] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#4f6d8f] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
+
+const dangerButtonClass =
+  'rounded-2xl bg-[#C62828] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#D32F2F] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
+
+function getRankLabel(index: number) {
+  if (index === 0) return '🥇';
+  if (index === 1) return '🥈';
+  if (index === 2) return '🥉';
+
+  return index + 1;
+}
+
 export default function LeaderboardPage() {
   const [games, setGames] = useState<GameHistory[]>([]);
   const [roomCode, setRoomCode] = useState('');
@@ -110,116 +130,156 @@ export default function LeaderboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-900 p-8 text-white">
-      <div className="mx-auto max-w-4xl rounded-2xl bg-zinc-800 p-8 shadow-xl">
-        <h1 className="mb-2 text-center text-4xl font-bold">
-          Rezultati sobe
-        </h1>
+    <main className={`${shellClass} px-4 py-5 sm:px-6 lg:px-8`}>
+      <div className="mx-auto w-full max-w-7xl">
+        <header className="mb-8 flex flex-col justify-between gap-5 border-b border-[#778DA9]/15 pb-6 lg:flex-row lg:items-center">
+          <div>
+            <p className="mb-2 text-sm font-bold uppercase tracking-[0.24em] text-[#778DA9]">
+              Room Analytics
+            </p>
 
-        {roomCode && (
-          <p className="mb-6 text-center text-zinc-400">
-            Kod sobe: <b>{roomCode}</b>
-          </p>
-        )}
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
+                Rezultati sobe
+              </h1>
 
-        <button
-          type="button"
-          onClick={goBackToLobby}
-          className="mb-4 text-blue-400 hover:underline"
-        >
-          ← Nazad u lobby
-        </button>
+              {roomCode && (
+                <span className="rounded-full border border-[#778DA9]/20 bg-[#1B263B] px-4 py-2 font-mono text-sm font-black tracking-widest text-[#B8C4D6]">
+                  {roomCode}
+                </span>
+              )}
+            </div>
+
+            <p className="mt-3 max-w-2xl text-[#B8C4D6]">
+              Pregled ukupnog poretka, statistike sobe i rezultata po svakoj
+              odigranoj igri.
+            </p>
+          </div>
+
+          <button type="button" onClick={goBackToLobby} className={primaryButtonClass}>
+            ← Nazad u lobby
+          </button>
+        </header>
 
         {games.length === 0 ? (
-          <p className="text-center text-zinc-400">
-            Još nema rezultata za ovu sobu.
-          </p>
+          <section className={`${cardClass} p-8 text-center sm:p-12`}>
+            <div className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-2xl bg-[#415A77]/25 text-3xl">
+              🏆
+            </div>
+
+            <h2 className="text-3xl font-black">Još nema rezultata</h2>
+
+            <p className="mx-auto mt-3 max-w-md text-[#B8C4D6]">
+              Nakon završene igre u ovoj sobi ovdje će se prikazati ukupni
+              leaderboard i povijest mečeva.
+            </p>
+
+            <button
+              type="button"
+              onClick={goBackToLobby}
+              className={`${primaryButtonClass} mt-7`}
+            >
+              Vrati se u lobby
+            </button>
+          </section>
         ) : (
           <>
-            <section className="mb-10 rounded-xl bg-zinc-700 p-6">
-              <h2 className="mb-4 text-2xl font-bold">Statistika</h2>
-
-              <div className="grid gap-4 md:grid-cols-4">
-                <div className="rounded-lg bg-zinc-800 p-4 text-center">
-                  <p className="text-3xl font-bold">{totalGames}</p>
-                  <p className="text-sm text-zinc-400">Igara</p>
+            <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {[
+                ['Igara', totalGames],
+                ['Igrača', totalPlayers],
+                ['Ukupno bodova', totalPoints],
+                ['Točnih odgovora', totalCorrectAnswers],
+              ].map(([label, value]) => (
+                <div key={label} className={`${cardClass} p-5`}>
+                  <p className="text-sm font-bold text-[#778DA9]">{label}</p>
+                  <p className="mt-2 text-4xl font-black">{value}</p>
                 </div>
-
-                <div className="rounded-lg bg-zinc-800 p-4 text-center">
-                  <p className="text-3xl font-bold">{totalPlayers}</p>
-                  <p className="text-sm text-zinc-400">Igrača</p>
-                </div>
-
-                <div className="rounded-lg bg-zinc-800 p-4 text-center">
-                  <p className="text-3xl font-bold">{totalPoints}</p>
-                  <p className="text-sm text-zinc-400">Ukupno bodova</p>
-                </div>
-
-                <div className="rounded-lg bg-zinc-800 p-4 text-center">
-                  <p className="text-3xl font-bold">{totalCorrectAnswers}</p>
-                  <p className="text-sm text-zinc-400">Točnih odgovora</p>
-                </div>
-              </div>
+              ))}
             </section>
 
-            <section className="mb-10">
-              <h2 className="mb-4 text-2xl font-bold">
-                Overall leaderboard
-              </h2>
+            <section className={`${cardClass} mb-6 p-5 sm:p-6`}>
+              <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+                <div>
+                  <p className="text-sm font-bold uppercase tracking-[0.22em] text-[#778DA9]">
+                    Overall Ranking
+                  </p>
+                  <h2 className="mt-2 text-3xl font-black">
+                    Ukupni leaderboard
+                  </h2>
+                </div>
+
+                <span className="rounded-full border border-[#778DA9]/20 bg-[#415A77]/20 px-4 py-2 text-sm font-black text-[#B8C4D6]">
+                  {totalPlayers} igrača
+                </span>
+              </div>
 
               <div className="space-y-3">
                 {overallLeaderboard.map((player, index) => (
                   <div
                     key={player.nickname}
-                    className="flex items-center justify-between rounded-lg bg-zinc-700 p-4"
+                    className="flex flex-col justify-between gap-4 rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/55 p-4 transition hover:border-[#778DA9]/35 hover:bg-[#0D1B2A]/75 sm:flex-row sm:items-center"
                   >
-                    <div className="flex items-center gap-4">
+                    <div className="flex min-w-0 items-center gap-4">
+                      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#415A77]/35 text-lg font-black">
+                        {getRankLabel(index)}
+                      </span>
+
                       <Image
                         src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${player.nickname}`}
                         alt={player.nickname}
-                        width={48}
-                        height={48}
-                        className="h-12 w-12 rounded-full"
+                        width={52}
+                        height={52}
+                        className="h-12 w-12 rounded-full ring-2 ring-[#778DA9]/25"
                         unoptimized
                       />
 
-                      <div>
-                        <p className="font-bold">
-                          {index === 0
-                            ? '🥇'
-                            : index === 1
-                              ? '🥈'
-                              : index === 2
-                                ? '🥉'
-                                : `${index + 1}.`}{' '}
+                      <div className="min-w-0">
+                        <p className="truncate text-lg font-black">
                           {player.nickname}
                         </p>
-
-                        <p className="text-sm text-zinc-400">
-                          Igre: {player.gamesPlayed} | Točno:{' '}
+                        <p className="text-sm text-[#778DA9]">
+                          Igre: {player.gamesPlayed} · Točno:{' '}
                           {player.totalCorrectAnswers}
                         </p>
                       </div>
                     </div>
 
-                    <span className="text-xl font-bold">
-                      {player.totalScore} bodova
-                    </span>
+                    <div className="text-left sm:text-right">
+                      <p className="text-2xl font-black">
+                        {player.totalScore}
+                      </p>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-[#778DA9]">
+                        bodova
+                      </p>
+                    </div>
                   </div>
                 ))}
               </div>
             </section>
 
-            <section className="space-y-8">
+            <section className="space-y-6">
               {games.map((game) => (
-                <div key={game.gameNumber}>
-                  <h2 className="mb-4 text-2xl font-bold">
-                    Game {game.gameNumber}
-                  </h2>
+                <article key={game.gameNumber} className={`${cardClass} p-5 sm:p-6`}>
+                  <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+                    <div>
+                      <p className="text-sm font-bold uppercase tracking-[0.22em] text-[#778DA9]">
+                        Match History
+                      </p>
 
-                  <p className="mb-4 text-sm text-zinc-400">
-                    {new Date(game.playedAt).toLocaleString()}
-                  </p>
+                      <h2 className="mt-2 text-2xl font-black">
+                        Game {game.gameNumber}
+                      </h2>
+
+                      <p className="mt-1 text-sm text-[#778DA9]">
+                        {new Date(game.playedAt).toLocaleString('hr-HR')}
+                      </p>
+                    </div>
+
+                    <span className="rounded-full border border-[#778DA9]/20 bg-[#0D1B2A]/55 px-4 py-2 text-sm font-black text-[#B8C4D6]">
+                      {game.players.length} igrača
+                    </span>
+                  </div>
 
                   <div className="space-y-3">
                     {[...game.players]
@@ -227,50 +287,51 @@ export default function LeaderboardPage() {
                       .map((player, index) => (
                         <div
                           key={`${game.gameNumber}-${player.id}`}
-                          className="flex items-center justify-between rounded-lg bg-zinc-700 p-4"
+                          className="flex flex-col justify-between gap-4 rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/55 p-4 transition hover:border-[#778DA9]/35 hover:bg-[#0D1B2A]/75 sm:flex-row sm:items-center"
                         >
-                          <div className="flex items-center gap-4">
+                          <div className="flex min-w-0 items-center gap-4">
+                            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[#415A77]/30 text-base font-black">
+                              {getRankLabel(index)}
+                            </span>
+
                             <Image
                               src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${player.nickname}`}
                               alt={player.nickname}
                               width={48}
                               height={48}
-                              className="h-12 w-12 rounded-full"
+                              className="h-12 w-12 rounded-full ring-2 ring-[#778DA9]/25"
                               unoptimized
                             />
 
-                            <div>
-                              <p className="font-bold">
-                                {index === 0
-                                  ? '🥇'
-                                  : index === 1
-                                    ? '🥈'
-                                    : index === 2
-                                      ? '🥉'
-                                      : `${index + 1}.`}{' '}
+                            <div className="min-w-0">
+                              <p className="truncate font-black">
                                 {player.nickname}
                               </p>
-
-                              <p className="text-sm text-zinc-400">
+                              <p className="text-sm text-[#778DA9]">
                                 Točni odgovori: {player.correctAnswers}
                               </p>
                             </div>
                           </div>
 
-                          <span className="text-xl font-bold">
-                            {player.score} bodova
-                          </span>
+                          <div className="text-left sm:text-right">
+                            <p className="text-2xl font-black">
+                              {player.score}
+                            </p>
+                            <p className="text-xs font-semibold uppercase tracking-wider text-[#778DA9]">
+                              bodova
+                            </p>
+                          </div>
                         </div>
                       ))}
                   </div>
-                </div>
+                </article>
               ))}
             </section>
 
             <button
               type="button"
               onClick={clearRoomResults}
-              className="mt-10 w-full rounded-xl bg-red-600 p-4 font-bold hover:bg-red-700"
+              className={`${dangerButtonClass} mt-8 w-full`}
             >
               Obriši rezultate ove sobe
             </button>

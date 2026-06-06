@@ -30,6 +30,18 @@ function playSound(src: string) {
   audio.play().catch(() => {});
 }
 
+const shellClass =
+  'min-h-screen bg-[radial-gradient(circle_at_50%_-10%,rgba(65,90,119,0.2),transparent_34%),linear-gradient(180deg,#0D1B2A_0%,#071523_100%)] text-[#E0E1DD]';
+
+const cardClass =
+  'rounded-[20px] border border-[#778DA9]/20 bg-[#1B263B]/88 shadow-[0_20px_70px_rgba(0,0,0,0.28)] backdrop-blur';
+
+const primaryButtonClass =
+  'rounded-2xl bg-[#415A77] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#4f6d8f] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
+
+const successButtonClass =
+  'rounded-2xl bg-[#388E3C] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#43A047] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
+
 export default function DailyPlayPage() {
   const [challenge, setChallenge] = useState<DailyChallenge | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -177,54 +189,76 @@ export default function DailyPlayPage() {
 
   function getOptionClass(option: string) {
     if (!selectedAnswer) {
-      return 'bg-blue-600 hover:bg-blue-700';
+      return 'border-[#778DA9]/20 bg-[#1B263B]/88 text-[#E0E1DD] hover:-translate-y-0.5 hover:border-[#778DA9]/45 hover:bg-[#243551]';
     }
 
     if (option === selectedAnswer && feedback === 'correct') {
-      return 'bg-green-600 ring-4 ring-green-300';
+      return 'border-[#388E3C]/50 bg-[#388E3C]/20 text-[#75d27a] ring-4 ring-[#388E3C]/15';
     }
 
     if (option === selectedAnswer && feedback === 'wrong') {
-      return 'bg-red-600 ring-4 ring-red-300';
+      return 'border-[#C62828]/50 bg-[#C62828]/20 text-[#ffb4b4] ring-4 ring-[#C62828]/15';
     }
 
-    return 'bg-zinc-700 opacity-60';
+    return 'border-[#778DA9]/10 bg-[#0D1B2A]/45 text-[#778DA9] opacity-60';
   }
 
   if (!challenge || questions.length === 0) {
     return (
-      <main className="min-h-screen bg-zinc-900 p-8 text-white">
-        <p className="text-center">Učitavanje daily challengea...</p>
+      <main className={`${shellClass} flex items-center justify-center p-6`}>
+        <section className={`${cardClass} w-full max-w-md p-8 text-center`}>
+          <div className="mx-auto mb-5 h-14 w-14 animate-pulse rounded-2xl bg-[#415A77]/35" />
+          <h1 className="text-3xl font-black">
+            Učitavanje daily challengea...
+          </h1>
+          <p className="mt-3 text-[#B8C4D6]">
+            Pripremam pitanja i provjeravam tvoj status.
+          </p>
+        </section>
       </main>
     );
   }
 
   const activeChallenge = challenge;
   const question = questions[current];
+  const progressPercent = ((current + 1) / questions.length) * 100;
 
   if (finished) {
     return (
-      <main className="min-h-screen bg-zinc-900 p-8 text-white">
-        <div className="mx-auto max-w-xl rounded-2xl bg-zinc-800 p-8 text-center shadow-xl">
-          <h1 className="mb-6 text-4xl font-bold">Daily Challenge završen!</h1>
-
-          <p className="mb-4 text-2xl">
-            Score: <b>{score}</b>
+      <main className={`${shellClass} flex items-center justify-center p-4 sm:p-6`}>
+        <section className={`${cardClass} w-full max-w-2xl p-5 text-center sm:p-8`}>
+          <p className="mb-3 text-sm font-bold uppercase tracking-[0.24em] text-[#778DA9]">
+            Daily Results
           </p>
 
-          <p className="mb-6 text-zinc-400">
+          <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
+            Daily Challenge završen!
+          </h1>
+
+          <div className="mx-auto mt-7 max-w-sm rounded-[20px] border border-[#778DA9]/15 bg-[#0D1B2A]/55 p-6">
+            <p className="text-sm font-bold uppercase tracking-wider text-[#778DA9]">
+              Final Score
+            </p>
+            <p className="mt-2 text-6xl font-black">{score}</p>
+            <p className="mt-1 text-[#B8C4D6]">bodova</p>
+          </div>
+
+          <p className="mx-auto mt-6 max-w-md text-[#B8C4D6]">
             {resultMessage || 'Rezultat je spremljen.'}
           </p>
 
           {unlockedAchievements.length > 0 && (
-            <div className="mb-6 rounded-xl bg-yellow-500 p-4 text-black">
-              <h2 className="mb-3 text-xl font-bold">
-                🏆 Achievement unlocked!
+            <div className="mt-6 rounded-[20px] border border-[#388E3C]/35 bg-[#388E3C]/15 p-5 text-left">
+              <h2 className="mb-4 text-xl font-black text-[#75d27a]">
+                Achievement unlocked
               </h2>
 
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {unlockedAchievements.map((achievement) => (
-                  <p key={achievement} className="font-bold">
+                  <p
+                    key={achievement}
+                    className="rounded-2xl border border-[#388E3C]/20 bg-[#0D1B2A]/35 p-3 font-bold text-[#E0E1DD]"
+                  >
                     {achievement}
                   </p>
                 ))}
@@ -234,61 +268,117 @@ export default function DailyPlayPage() {
 
           <Link
             href="/daily"
-            className="block rounded-lg bg-yellow-500 p-3 font-bold text-black hover:bg-yellow-400"
+            className={`${primaryButtonClass} mt-7 inline-flex w-full justify-center sm:w-auto`}
           >
             Nazad na Daily Challenge
           </Link>
-        </div>
+        </section>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-zinc-900 p-8 text-white">
-      <div className="mx-auto max-w-xl rounded-2xl bg-zinc-800 p-8 shadow-xl">
-        <Link href="/daily">← Nazad</Link>
+    <main className={`${shellClass} px-4 py-5 sm:px-6 lg:px-8`}>
+      <div className="mx-auto w-full max-w-5xl">
+        <header className="mb-6 flex flex-col justify-between gap-4 rounded-[20px] border border-[#778DA9]/15 bg-[#1B263B]/55 px-4 py-4 backdrop-blur sm:flex-row sm:items-center sm:px-6">
+          <Link
+            href="/daily"
+            className="rounded-full border border-[#778DA9]/20 px-4 py-2 text-sm font-bold text-[#B8C4D6] transition hover:border-[#778DA9]/45 hover:bg-[#415A77]/20"
+          >
+            ← Nazad
+          </Link>
 
-        <p className="mb-2 text-center text-sm uppercase tracking-widest text-yellow-400">
-          {activeChallenge.category}
-        </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="rounded-full border border-[#778DA9]/20 bg-[#415A77]/20 px-4 py-2 text-sm font-black text-[#B8C4D6]">
+              Score: {score}
+            </span>
 
-        <h1 className="mb-4 text-center text-3xl font-bold">
-          {activeChallenge.title}
-        </h1>
+            <span className="rounded-full border border-[#778DA9]/20 bg-[#0D1B2A]/55 px-4 py-2 text-sm font-black text-[#B8C4D6]">
+              {current + 1}/{questions.length}
+            </span>
+          </div>
+        </header>
 
-        <p className="mb-6 text-center text-zinc-400">
-          Pitanje {current + 1} / {questions.length}
-        </p>
+        <section className={`${cardClass} mb-6 overflow-hidden`}>
+          <div className="h-2 w-full bg-[#0D1B2A]/80">
+            <div
+              className="h-full bg-[#388E3C] transition-all duration-500"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
 
-        <h2 className="mb-8 text-2xl font-bold">{question.question}</h2>
+          <div className="p-5 text-center sm:p-8">
+            <span className="inline-flex rounded-full border border-[#778DA9]/20 bg-[#415A77]/20 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-[#B8C4D6]">
+              {activeChallenge.category}
+            </span>
+
+            <h1 className="mx-auto mt-5 max-w-3xl text-3xl font-black tracking-tight sm:text-5xl">
+              {activeChallenge.title}
+            </h1>
+
+            <p className="mt-3 text-[#B8C4D6]">
+              Pitanje {current + 1} od {questions.length}
+            </p>
+
+            <h2 className="mx-auto mt-8 max-w-3xl text-2xl font-black leading-tight sm:text-4xl">
+              {question.question}
+            </h2>
+          </div>
+        </section>
 
         {feedback && (
           <div
-            className={`mb-4 rounded-lg p-3 text-center text-lg font-bold ${
-              feedback === 'correct' ? 'bg-green-600' : 'bg-red-600'
+            className={`mb-5 rounded-2xl border p-4 text-center text-lg font-black ${
+              feedback === 'correct'
+                ? 'border-[#388E3C]/35 bg-[#388E3C]/15 text-[#75d27a]'
+                : 'border-[#C62828]/35 bg-[#C62828]/15 text-[#ffb4b4]'
             }`}
           >
-            {feedback === 'correct' ? '✅ Točan odgovor!' : '❌ Netočan odgovor!'}
+            {feedback === 'correct' ? 'Točan odgovor!' : 'Netočan odgovor!'}
           </div>
         )}
 
-        <div className="space-y-4">
-          {question.options.map((option) => (
+        <section className="grid gap-4 md:grid-cols-2">
+          {question.options.map((option, index) => (
             <button
               key={option}
               type="button"
               disabled={locked}
               onClick={() => answer(option)}
-              className={`w-full rounded-lg p-4 text-left font-bold transition ${getOptionClass(
+              className={`group flex min-h-20 items-center gap-4 rounded-[20px] border p-5 text-left font-black shadow-[0_14px_45px_rgba(0,0,0,0.18)] transition disabled:cursor-not-allowed ${getOptionClass(
                 option,
               )}`}
             >
-              {option}
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#0D1B2A] text-sm font-black text-[#B8C4D6] transition group-hover:bg-[#415A77] group-hover:text-white">
+                {String.fromCharCode(65 + index)}
+              </span>
+
+              <span>{option}</span>
             </button>
           ))}
-        </div>
+        </section>
 
-        <p className="mt-6 text-center text-zinc-400">Score: {score}</p>
+        <section className="mt-6 grid gap-4 sm:grid-cols-3">
+          <div className={`${cardClass} p-5`}>
+            <p className="text-sm font-bold text-[#778DA9]">Score</p>
+            <p className="mt-2 text-3xl font-black">{score}</p>
+          </div>
+
+          <div className={`${cardClass} p-5`}>
+            <p className="text-sm font-bold text-[#778DA9]">Reward</p>
+            <p className="mt-2 text-3xl font-black">
+              {activeChallenge.rewardXp}
+            </p>
+            <p className="text-sm text-[#778DA9]">XP</p>
+          </div>
+
+          <div className={`${cardClass} p-5`}>
+            <p className="text-sm font-bold text-[#778DA9]">Progress</p>
+            <p className="mt-2 text-3xl font-black">
+              {Math.round(progressPercent)}%
+            </p>
+          </div>
+        </section>
       </div>
     </main>
   );

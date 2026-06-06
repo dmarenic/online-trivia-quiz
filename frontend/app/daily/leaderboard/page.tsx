@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from 'next/link';
+import Link from "next/link";
 import Image from "next/image";
 
 type DailyResult = {
@@ -15,6 +15,23 @@ type DailyResult = {
   };
 };
 
+const shellClass =
+  "min-h-screen bg-[radial-gradient(circle_at_50%_-10%,rgba(65,90,119,0.2),transparent_34%),linear-gradient(180deg,#0D1B2A_0%,#071523_100%)] text-[#E0E1DD]";
+
+const cardClass =
+  "rounded-[20px] border border-[#778DA9]/20 bg-[#1B263B]/88 shadow-[0_20px_70px_rgba(0,0,0,0.28)] backdrop-blur";
+
+const primaryButtonClass =
+  "rounded-2xl bg-[#415A77] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#4f6d8f] hover:shadow-lg hover:shadow-black/20 active:translate-y-0";
+
+function getRankLabel(index: number) {
+  if (index === 0) return "🥇";
+  if (index === 1) return "🥈";
+  if (index === 2) return "🥉";
+
+  return index + 1;
+}
+
 export default function DailyLeaderboardPage() {
   const [results, setResults] = useState<DailyResult[]>([]);
 
@@ -24,65 +41,145 @@ export default function DailyLeaderboardPage() {
       .then((data) => setResults(data));
   }, []);
 
-  return (
-    <main className="min-h-screen bg-zinc-900 p-8 text-white">
-      <div className="mx-auto max-w-2xl rounded-2xl bg-zinc-800 p-8 shadow-xl">
-        <Link href="/daily">← Nazad</Link>
+  const topScore = results[0]?.score ?? 0;
 
-        <h1 className="mb-8 text-center text-4xl font-bold">
-          🏅 Daily Leaderboard
-        </h1>
+  return (
+    <main className={`${shellClass} px-4 py-5 sm:px-6 lg:px-8`}>
+      <div className="mx-auto w-full max-w-7xl">
+        <header className="mb-8 flex flex-col justify-between gap-5 border-b border-[#778DA9]/15 pb-6 lg:flex-row lg:items-center">
+          <div>
+            <p className="mb-2 text-sm font-bold uppercase tracking-[0.24em] text-[#778DA9]">
+              Daily Rankings
+            </p>
+
+            <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
+              Daily Leaderboard
+            </h1>
+
+            <p className="mt-3 max-w-2xl text-[#B8C4D6]">
+              Pregled najboljih dnevnih rezultata i poretka igrača za Daily
+              Challenge.
+            </p>
+          </div>
+
+          <nav className="flex flex-wrap gap-3">
+            <Link
+              href="/daily"
+              className="rounded-2xl border border-[#778DA9]/20 px-5 py-3 font-bold text-[#B8C4D6] transition hover:border-[#778DA9]/45 hover:bg-[#415A77]/20"
+            >
+              ← Nazad
+            </Link>
+
+            <Link href="/daily/play" className={primaryButtonClass}>
+              Igraj Daily
+            </Link>
+          </nav>
+        </header>
 
         {results.length === 0 ? (
-          <p className="text-center text-zinc-400">
-            Još nema daily rezultata.
-          </p>
+          <section className={`${cardClass} p-8 text-center sm:p-12`}>
+            <div className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-2xl bg-[#415A77]/25 text-3xl">
+              🏅
+            </div>
+
+            <h2 className="text-3xl font-black">Još nema daily rezultata</h2>
+
+            <p className="mx-auto mt-3 max-w-md text-[#B8C4D6]">
+              Kada igrači završe Daily Challenge, rezultati će se prikazati
+              ovdje.
+            </p>
+
+            <Link href="/daily" className={`${primaryButtonClass} mt-7 inline-flex`}>
+              Otvori Daily Challenge
+            </Link>
+          </section>
         ) : (
-          <div className="space-y-3">
-            {results.map((result, index) => (
-              <div
-                key={result.id}
-                className="flex items-center justify-between rounded-lg bg-zinc-700 p-4"
-              >
-                <div className="flex items-center gap-4">
-                  <span className="text-2xl">
-                    {index === 0
-                      ? "🥇"
-                      : index === 1
-                      ? "🥈"
-                      : index === 2
-                      ? "🥉"
-                      : `${index + 1}.`}
-                  </span>
+          <>
+            <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className={`${cardClass} p-5`}>
+                <p className="text-sm font-bold text-[#778DA9]">Rezultata</p>
+                <p className="mt-2 text-4xl font-black">{results.length}</p>
+              </div>
 
-                  <Image
-  src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${
-    result.user?.avatar || result.nickname
-  }`}
-  alt="Avatar"
-  width={48}
-  height={48}
-  className="h-12 w-12 rounded-full bg-zinc-800"
-  unoptimized
-/>
+              <div className={`${cardClass} p-5`}>
+                <p className="text-sm font-bold text-[#778DA9]">Top score</p>
+                <p className="mt-2 text-4xl font-black">{topScore}</p>
+              </div>
 
-                  <div>
-                    <p className="font-bold">
-                      {result.user?.username || result.nickname}
-                    </p>
+              <div className={`${cardClass} p-5`}>
+                <p className="text-sm font-bold text-[#778DA9]">Status</p>
+                <p className="mt-2 text-4xl font-black">Live</p>
+              </div>
+            </section>
 
-                    <p className="text-sm text-zinc-400">
-                      {new Date(result.createdAt).toLocaleString()}
-                    </p>
-                  </div>
+            <section className={`${cardClass} p-5 sm:p-6`}>
+              <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+                <div>
+                  <p className="text-sm font-bold uppercase tracking-[0.22em] text-[#778DA9]">
+                    Ranked Players
+                  </p>
+                  <h2 className="mt-2 text-3xl font-black">
+                    Današnji poredak
+                  </h2>
                 </div>
 
-                <span className="text-xl font-bold">
-                  {result.score} bodova
+                <span className="rounded-full border border-[#778DA9]/20 bg-[#415A77]/20 px-4 py-2 text-sm font-black text-[#B8C4D6]">
+                  {results.length} igrača
                 </span>
               </div>
-            ))}
-          </div>
+
+              <div className="space-y-3">
+                {results.map((result, index) => {
+                  const player = {
+                    nickname: result.user?.username || result.nickname,
+                  };
+
+                  return (
+                    <div
+                      key={result.id}
+                      className={`flex flex-col justify-between gap-4 rounded-2xl border p-4 transition hover:-translate-y-0.5 sm:flex-row sm:items-center ${
+                        index < 3
+                          ? "border-[#388E3C]/25 bg-[#0D1B2A]/70"
+                          : "border-[#778DA9]/15 bg-[#0D1B2A]/55 hover:border-[#778DA9]/35 hover:bg-[#0D1B2A]/75"
+                      }`}
+                    >
+                      <div className="flex min-w-0 items-center gap-4">
+                        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#415A77]/35 text-lg font-black">
+                          {getRankLabel(index)}
+                        </span>
+
+                        <Image
+                          src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${player.nickname}`}
+                          alt={player.nickname}
+                          width={52}
+                          height={52}
+                          className="h-12 w-12 rounded-full bg-[#0D1B2A] ring-2 ring-[#778DA9]/25"
+                          unoptimized
+                        />
+
+                        <div className="min-w-0">
+                          <p className="truncate text-lg font-black">
+                            {result.user?.username || result.nickname}
+                          </p>
+
+                          <p className="text-sm text-[#778DA9]">
+                            {new Date(result.createdAt).toLocaleString("hr-HR")}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="text-left sm:text-right">
+                        <p className="text-2xl font-black">{result.score}</p>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-[#778DA9]">
+                          bodova
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          </>
         )}
       </div>
     </main>

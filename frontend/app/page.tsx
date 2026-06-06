@@ -26,6 +26,24 @@ function playSound(src: string) {
   audio.play().catch(() => {});
 }
 
+const shellClass =
+  'min-h-screen bg-[radial-gradient(circle_at_50%_-10%,rgba(65,90,119,0.2),transparent_34%),linear-gradient(180deg,#0D1B2A_0%,#071523_100%)] text-[#E0E1DD]';
+
+const cardClass =
+  'rounded-[20px] border border-[#778DA9]/20 bg-[#1B263B]/88 shadow-[0_20px_70px_rgba(0,0,0,0.28)] backdrop-blur';
+
+const inputClass =
+  'w-full rounded-2xl border border-[#778DA9]/20 bg-[#0D1B2A]/70 px-4 py-3 text-[#E0E1DD] outline-none transition placeholder:text-[#778DA9] focus:border-[#778DA9]/55 focus:ring-4 focus:ring-[#778DA9]/10';
+
+const primaryButtonClass =
+  'rounded-2xl bg-[#415A77] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#4f6d8f] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
+
+const successButtonClass =
+  'rounded-2xl bg-[#388E3C] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#43A047] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
+
+const dangerButtonClass =
+  'rounded-2xl bg-[#C62828] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#D32F2F]';
+
 export default function Home() {
   const [nickname, setNickname] = useState('');
   const [roomCode, setRoomCode] = useState('');
@@ -145,13 +163,13 @@ export default function Home() {
     try {
       const parsedUser: User = JSON.parse(savedUser);
 
-if (parsedUser.role?.toLowerCase() === 'admin') {
-  window.location.href = '/admin/questions';
-  return;
-}
+      if (parsedUser.role?.toLowerCase() === 'admin') {
+        window.location.href = '/admin/questions';
+        return;
+      }
 
-setUser(parsedUser);
-setNickname(parsedUser.username);
+      setUser(parsedUser);
+      setNickname(parsedUser.username);
 
       socket = io(process.env.NEXT_PUBLIC_API_URL!, {
         transports: ['websocket'],
@@ -246,131 +264,194 @@ setNickname(parsedUser.username);
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-900 text-white">
-      <div className="w-full max-w-md rounded-2xl bg-zinc-800 p-8 shadow-xl">
-        <div className="mb-6 flex items-center justify-between">
+    <main className={`${shellClass} px-4 py-5 sm:px-6 lg:px-8`}>
+      <div className="mx-auto flex min-h-[calc(100vh-40px)] w-full max-w-7xl flex-col">
+        <header className="mb-10 flex flex-col justify-between gap-4 rounded-[20px] border border-[#778DA9]/15 bg-[#1B263B]/55 px-4 py-4 backdrop-blur sm:flex-row sm:items-center sm:px-6">
+          <Link href="/" className="text-lg font-black tracking-tight">
+            Trivia Quiz
+          </Link>
+
           {user ? (
-            <>
+            <nav className="flex flex-wrap items-center gap-3">
               <Link
                 href="/profile"
-                className="font-bold text-blue-400 hover:underline"
+                className="rounded-full border border-[#778DA9]/20 px-4 py-2 text-sm font-bold text-[#B8C4D6] transition hover:border-[#778DA9]/45 hover:bg-[#415A77]/20"
               >
-                👤 {user.username}
+                {user.username}
               </Link>
 
-              <Link href="/friends" className="text-blue-400 hover:underline">
+              <Link
+                href="/friends"
+                className="rounded-full border border-[#778DA9]/20 px-4 py-2 text-sm font-bold text-[#B8C4D6] transition hover:border-[#778DA9]/45 hover:bg-[#415A77]/20"
+              >
                 Friends
               </Link>
 
-              <button
-                type="button"
-                onClick={logout}
-                className="rounded-lg bg-red-600 px-3 py-2 text-sm font-bold hover:bg-red-700"
-              >
+              <button type="button" onClick={logout} className={dangerButtonClass}>
                 Odjava
               </button>
-            </>
+            </nav>
           ) : (
-            <div className="flex w-full justify-center gap-4">
-              <Link href="/login" className="text-blue-400 hover:underline">
+            <nav className="flex flex-wrap items-center gap-3">
+              <Link
+                href="/login"
+                className="rounded-full border border-[#778DA9]/20 px-4 py-2 text-sm font-bold text-[#B8C4D6] transition hover:border-[#778DA9]/45 hover:bg-[#415A77]/20"
+              >
                 Prijava
               </Link>
 
-              <Link href="/register" className="text-blue-400 hover:underline">
+              <Link href="/register" className={primaryButtonClass}>
                 Registracija
               </Link>
-            </div>
+            </nav>
           )}
-        </div>
+        </header>
 
-        <h1 className="mb-6 text-center text-4xl font-bold">
-          Online Trivia Quiz
-        </h1>
+        <section className="grid flex-1 items-center gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+          <div className="max-w-2xl">
+            <p className="mb-4 inline-flex rounded-full border border-[#778DA9]/20 bg-[#415A77]/20 px-4 py-2 text-xs font-black uppercase tracking-[0.24em] text-[#B8C4D6]">
+              Multiplayer trivia platform
+            </p>
 
-        {invites.length > 0 && (
-          <div className="mb-6 rounded-xl bg-zinc-700 p-4">
-            <h2 className="mb-3 text-xl font-bold">📩 Pozivnice</h2>
+            <h1 className="text-4xl font-black leading-tight tracking-tight sm:text-6xl lg:text-7xl">
+              Online Trivia Quiz za brze, pametne i kompetitivne igre.
+            </h1>
 
-            {invites.map((invite) => (
-              <div
-                key={invite.id}
-                className="relative mb-3 rounded-lg bg-zinc-800 p-3 last:mb-0"
-              >
-                <button
-                  type="button"
-                  onClick={() => rejectInvite(invite.id)}
-                  className="absolute right-2 top-2 rounded-full bg-red-600 px-2 py-1 text-xs font-bold hover:bg-red-700"
-                  aria-label="Odbij pozivnicu"
-                >
-                  X
-                </button>
+            <p className="mt-5 max-w-xl text-lg leading-8 text-[#B8C4D6]">
+              Kreiraj sobu, pozovi prijatelje i natječite se kroz moderne quiz
+              runde s jasnim rezultatima, live statusima i leaderboardom.
+            </p>
 
-                <p className="mb-3 pr-8 text-sm">
-                  <b>{invite.fromUser?.username ?? 'Prijatelj'}</b> te pozvao u
-                  sobu <b>{invite.roomCode}</b>
-                </p>
-
-                <button
-                  type="button"
-                  onClick={() => joinRoom(invite.roomCode)}
-                  className="w-full rounded-lg bg-green-600 p-2 font-bold hover:bg-green-700"
-                >
-                  Pridruži se
-                </button>
+            <div className="mt-8 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-[#778DA9]/15 bg-[#1B263B]/55 p-4">
+                <p className="text-2xl font-black">Live</p>
+                <p className="mt-1 text-sm text-[#778DA9]">multiplayer</p>
               </div>
-            ))}
+
+              <div className="rounded-2xl border border-[#778DA9]/15 bg-[#1B263B]/55 p-4">
+                <p className="text-2xl font-black">Daily</p>
+                <p className="mt-1 text-sm text-[#778DA9]">challenge</p>
+              </div>
+
+              <div className="rounded-2xl border border-[#778DA9]/15 bg-[#1B263B]/55 p-4">
+                <p className="text-2xl font-black">Ranked</p>
+                <p className="mt-1 text-sm text-[#778DA9]">leaderboard</p>
+              </div>
+            </div>
           </div>
-        )}
 
-        <input
-          className="mb-4 w-full rounded-lg bg-white p-3 text-black"
-          placeholder="Unesi nickname"
-          value={nickname}
-          onChange={(e) => setNickname(e.target.value)}
-        />
+          <div className={`${cardClass} p-5 sm:p-7`}>
+            <div className="mb-6">
+              <p className="text-sm font-bold uppercase tracking-[0.22em] text-[#778DA9]">
+                Quick start
+              </p>
+              <h2 className="mt-2 text-3xl font-black">Pokreni igru</h2>
+              <p className="mt-2 text-[#B8C4D6]">
+                Unesi nickname i kreiraj novu sobu ili se pridruži postojećoj.
+              </p>
+            </div>
 
-        <button
-          type="button"
-          onClick={createRoom}
-          className="mb-4 w-full rounded-lg bg-blue-600 p-3 font-bold hover:bg-blue-700"
-        >
-          Kreiraj sobu
-        </button>
+            {invites.length > 0 && (
+              <div className="mb-6 rounded-[20px] border border-[#778DA9]/20 bg-[#0D1B2A]/55 p-4">
+                <h3 className="mb-3 text-lg font-black">Pozivnice</h3>
 
-        {roomCode && (
-          <div className="mb-4 rounded-lg bg-purple-600 p-3 text-center font-bold">
-            🎮 Pozvan si u sobu: {roomCode}
+                <div className="space-y-3">
+                  {invites.map((invite) => (
+                    <div
+                      key={invite.id}
+                      className="relative rounded-2xl border border-[#778DA9]/15 bg-[#1B263B]/75 p-4"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => rejectInvite(invite.id)}
+                        className="absolute right-3 top-3 rounded-full border border-[#C62828]/30 bg-[#C62828]/15 px-2.5 py-1 text-xs font-black text-[#ffb4b4] transition hover:bg-[#C62828] hover:text-white"
+                        aria-label="Odbij pozivnicu"
+                      >
+                        X
+                      </button>
+
+                      <p className="mb-3 pr-8 text-sm text-[#B8C4D6]">
+                        <b className="text-[#E0E1DD]">
+                          {invite.fromUser?.username ?? 'Prijatelj'}
+                        </b>{' '}
+                        te pozvao u sobu{' '}
+                        <b className="font-mono text-[#E0E1DD]">
+                          {invite.roomCode}
+                        </b>
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={() => joinRoom(invite.roomCode)}
+                        className={`${successButtonClass} w-full`}
+                      >
+                        Pridruži se
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <label className="mb-2 block text-sm font-bold text-[#B8C4D6]">
+              Nickname
+            </label>
+            <input
+              className={`${inputClass} mb-4`}
+              placeholder="Unesi nickname"
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
+            />
+
+            <button
+              type="button"
+              onClick={createRoom}
+              className={`${primaryButtonClass} mb-4 w-full`}
+            >
+              Kreiraj sobu
+            </button>
+
+            {roomCode && (
+              <div className="mb-4 rounded-2xl border border-[#388E3C]/30 bg-[#388E3C]/15 p-3 text-center font-bold text-[#75d27a]">
+                Pozvan si u sobu: {roomCode}
+              </div>
+            )}
+
+            <label className="mb-2 block text-sm font-bold text-[#B8C4D6]">
+              Kod sobe
+            </label>
+            <input
+              className={`${inputClass} mb-4 font-mono uppercase tracking-widest`}
+              placeholder="Unesi kod sobe"
+              value={roomCode}
+              onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+            />
+
+            <button
+              type="button"
+              onClick={() => joinRoom()}
+              className={`${successButtonClass} w-full`}
+            >
+              Pridruži se sobi
+            </button>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <Link
+                href="/daily"
+                className="rounded-2xl border border-[#778DA9]/20 bg-[#0D1B2A]/55 px-4 py-3 text-center font-bold transition hover:-translate-y-0.5 hover:border-[#778DA9]/45 hover:bg-[#415A77]/20"
+              >
+                Daily Challenge
+              </Link>
+
+              <Link
+                href="/daily/leaderboard"
+                className="rounded-2xl border border-[#778DA9]/20 bg-[#0D1B2A]/55 px-4 py-3 text-center font-bold transition hover:-translate-y-0.5 hover:border-[#778DA9]/45 hover:bg-[#415A77]/20"
+              >
+                Daily Leaderboard
+              </Link>
+            </div>
           </div>
-        )}
-
-        <input
-          className="mb-4 w-full rounded-lg bg-white p-3 text-black"
-          placeholder="Unesi kod sobe ili koristi invite link"
-          value={roomCode}
-          onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-        />
-
-        <button
-          type="button"
-          onClick={() => joinRoom()}
-          className="w-full rounded-lg bg-green-600 p-3 font-bold hover:bg-green-700"
-        >
-          Pridruži se sobi
-        </button>
-
-        <Link
-          href="/daily"
-          className="mt-4 block rounded-lg bg-yellow-500 p-3 text-center font-bold text-black hover:bg-yellow-400"
-        >
-          🏅 Daily Challenge
-        </Link>
-
-        <Link
-          href="/"
-          className="mt-4 block text-center text-sm text-blue-400 hover:underline"
-        >
-          🏅 Daily Leaderboard
-        </Link>
+        </section>
       </div>
     </main>
   );
