@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 
 type PlayerResult = {
   id: string;
@@ -12,17 +13,28 @@ type PlayerResult = {
 type GameHistory = {
   gameNumber: number;
   playedAt: string;
+  roomCode?: string;
   players: PlayerResult[];
 };
 
 export default function LeaderboardPage() {
   const [games, setGames] = useState<GameHistory[]>([]);
+  const [roomCode, setRoomCode] = useState('');
 
   useEffect(() => {
-    const savedHistory = localStorage.getItem('roomGameHistory');
+    const savedRoomCode = localStorage.getItem('lastRoomCode') ?? '';
+    setRoomCode(savedRoomCode);
+
+    const roomHistoryKey = savedRoomCode
+      ? `roomGameHistory:${savedRoomCode}`
+      : 'roomGameHistory';
+
+    const savedHistory = localStorage.getItem(roomHistoryKey);
 
     if (savedHistory) {
       setGames(JSON.parse(savedHistory));
+    } else {
+      setGames([]);
     }
   }, []);
 
@@ -74,21 +86,49 @@ export default function LeaderboardPage() {
     0,
   );
 
+  function goBackToLobby() {
+    const returnUrl = localStorage.getItem('returnToRoom');
+
+    if (returnUrl) {
+      window.location.href = returnUrl;
+      return;
+    }
+
+    if (roomCode) {
+      window.location.href = `/room?room=${roomCode}`;
+      return;
+    }
+
+    window.location.href = '/';
+  }
+
+  function clearRoomResults() {
+    if (!roomCode) return;
+
+    localStorage.removeItem(`roomGameHistory:${roomCode}`);
+    setGames([]);
+  }
+
   return (
     <main className="min-h-screen bg-zinc-900 p-8 text-white">
       <div className="mx-auto max-w-4xl rounded-2xl bg-zinc-800 p-8 shadow-xl">
-        <h1 className="mb-8 text-center text-4xl font-bold">
+        <h1 className="mb-2 text-center text-4xl font-bold">
           Rezultati sobe
         </h1>
 
+        {roomCode && (
+          <p className="mb-6 text-center text-zinc-400">
+            Kod sobe: <b>{roomCode}</b>
+          </p>
+        )}
+
         <button
-  onClick={() => {
-    window.location.href = '/room';
-  }}
-  className="mb-8 block w-full text-center text-sm text-blue-400 hover:underline"
->
-  ← Nazad u sobu
-</button>
+          type="button"
+          onClick={goBackToLobby}
+          className="mb-4 text-blue-400 hover:underline"
+        >
+          ← Nazad u lobby
+        </button>
 
         {games.length === 0 ? (
           <p className="text-center text-zinc-400">
@@ -134,10 +174,13 @@ export default function LeaderboardPage() {
                     className="flex items-center justify-between rounded-lg bg-zinc-700 p-4"
                   >
                     <div className="flex items-center gap-4">
-                      <img
+                      <Image
                         src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${player.nickname}`}
-                        className="h-12 w-12 rounded-full bg-zinc-800"
-                        alt="Avatar"
+                        alt={player.nickname}
+                        width={48}
+                        height={48}
+                        className="h-12 w-12 rounded-full"
+                        unoptimized
                       />
 
                       <div>
@@ -187,10 +230,13 @@ export default function LeaderboardPage() {
                           className="flex items-center justify-between rounded-lg bg-zinc-700 p-4"
                         >
                           <div className="flex items-center gap-4">
-                            <img
+                            <Image
                               src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${player.nickname}`}
-                              className="h-12 w-12 rounded-full bg-zinc-800"
-                              alt="Avatar"
+                              alt={player.nickname}
+                              width={48}
+                              height={48}
+                              className="h-12 w-12 rounded-full"
+                              unoptimized
                             />
 
                             <div>
@@ -222,14 +268,11 @@ export default function LeaderboardPage() {
             </section>
 
             <button
-              onClick={() => {
-                localStorage.removeItem('roomGameHistory');
-                localStorage.removeItem('roomLeaderboard');
-                setGames([]);
-              }}
+              type="button"
+              onClick={clearRoomResults}
               className="mt-10 w-full rounded-xl bg-red-600 p-4 font-bold hover:bg-red-700"
             >
-              Obriši rezultate sobe
+              Obriši rezultate ove sobe
             </button>
           </>
         )}

@@ -29,17 +29,14 @@ export class LeaderboardController {
 
   @UseGuards(JwtAuthGuard)
   @Post()
-  async saveResult(
-    @CurrentUser() user: any,
-    @Body() body: SaveResultDto,
-  ) {
+  async saveResult(@CurrentUser() user: any, @Body() body: SaveResultDto) {
     const uniqueAnswers = Array.from(
-  new Map(
-    body.answers.map((answer) => [answer.questionId, answer]),
-  ).values(),
-);
+      new Map(
+        body.answers.map((answer) => [answer.questionId, answer]),
+      ).values(),
+    );
 
-const questionIds = uniqueAnswers.map((answer) => answer.questionId);
+    const questionIds = uniqueAnswers.map((answer) => answer.questionId);
 
     const questions = await this.prisma.question.findMany({
       where: {

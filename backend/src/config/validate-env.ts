@@ -1,10 +1,5 @@
 export function validateEnv() {
-  const required = [
-    'DATABASE_URL',
-    'DIRECT_URL',
-    'JWT_SECRET',
-    'FRONTEND_URL',
-  ];
+  const required = ['DATABASE_URL', 'DIRECT_URL', 'JWT_SECRET', 'FRONTEND_URL'];
 
   const missing = required.filter((key) => !process.env[key]);
 

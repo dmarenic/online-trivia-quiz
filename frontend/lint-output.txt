@@ -1,0 +1,135 @@
+
+> frontend@0.1.0 lint
+> eslint
+
+
+C:\Projects\online-trivia-quiz\frontend\app\achievements\page.tsx
+  33:9  error  Do not use an `<a>` element to navigate to `/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages  @next/next/no-html-link-for-pages
+
+C:\Projects\online-trivia-quiz\frontend\app\admin\questions\page.tsx
+   85:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Projects\online-trivia-quiz\frontend\app\admin\questions\page.tsx:85:7
+  83 |       }
+  84 |
+> 85 |       setUser(parsedUser);
+     |       ^^^^^^^ Avoid calling setState() directly within an effect
+  86 |       fetchQuestions();
+  87 |     } catch {
+  88 |       localStorage.removeItem('user');  react-hooks/set-state-in-effect
+  248:9  error  Do not use an `<a>` element to navigate to `/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           @next/next/no-html-link-for-pages
+
+C:\Projects\online-trivia-quiz\frontend\app\daily\leaderboard\page.tsx
+  28:9   error    Do not use an `<a>` element to navigate to `/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages                                                                                                                                    @next/next/no-html-link-for-pages
+  58:19  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Projects\online-trivia-quiz\frontend\app\daily\page.tsx
+  68:9  error  Do not use an `<a>` element to navigate to `/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages  @next/next/no-html-link-for-pages
+
+C:\Projects\online-trivia-quiz\frontend\app\daily\play\page.tsx
+  86:5  error  Error: This value cannot be modified
+
+Modifying a variable defined outside a component or hook is not allowed. Consider using an effect.
+
+C:\Projects\online-trivia-quiz\frontend\app\daily\play\page.tsx:86:5
+  84 |
+  85 |   if (!savedUser || !token) {
+> 86 |     window.location.href = "/login";
+     |     ^^^^^^^^^^^^^^^ value cannot be modified
+  87 |     return;
+  88 |   }
+  89 |  react-hooks/immutability
+
+C:\Projects\online-trivia-quiz\frontend\app\friends\page.tsx
+  51:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Projects\online-trivia-quiz\frontend\app\friends\page.tsx:51:5
+  49 |
+  50 |     const parsedUser = JSON.parse(savedUser);
+> 51 |     setUser(parsedUser);
+     |     ^^^^^^^ Avoid calling setState() directly within an effect
+  52 |     loadFriends();
+  53 |   }, []);
+  54 |  react-hooks/set-state-in-effect
+  97:9  error  Do not use an `<a>` element to navigate to `/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     @next/next/no-html-link-for-pages
+
+C:\Projects\online-trivia-quiz\frontend\app\leaderboard\page.tsx
+   25:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Projects\online-trivia-quiz\frontend\app\leaderboard\page.tsx:25:7
+  23 |
+  24 |     if (savedHistory) {
+> 25 |       setGames(JSON.parse(savedHistory));
+     |       ^^^^^^^^ Avoid calling setState() directly within an effect
+  26 |     }
+  27 |   }, []);
+  28 |  react-hooks/set-state-in-effect
+  137:23  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @next/next/no-img-element
+  190:29  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @next/next/no-img-element
+
+C:\Projects\online-trivia-quiz\frontend\app\page.tsx
+  41:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Projects\online-trivia-quiz\frontend\app\page.tsx:41:7
+  39 |
+  40 |     if (roomFromUrl) {
+> 41 |       setRoomCode(roomFromUrl.toUpperCase());
+     |       ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  42 |     }
+  43 |
+  44 |     if (!savedUser) return;  react-hooks/set-state-in-effect
+
+C:\Projects\online-trivia-quiz\frontend\app\profile\page.tsx
+  225:9   error    Do not use an `<a>` element to navigate to `/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages                                                                                                                                    @next/next/no-html-link-for-pages
+  233:13  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Projects\online-trivia-quiz\frontend\app\room\page.tsx
+  160:7   warning  'parsedUser' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+  163:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Projects\online-trivia-quiz\frontend\app\room\page.tsx:163:7
+  161 |       finalNickname = userFromStorage.username || 'Guest';
+  162 |
+> 163 |       setUser(userFromStorage);
+      |       ^^^^^^^ Avoid calling setState() directly within an effect
+  164 |       setNickname(userFromStorage.username || '');
+  165 |
+  166 |       socket?.emit('join_user_channel');  react-hooks/set-state-in-effect
+  396:6   warning  React Hook useEffect has missing dependencies: 'questionCount' and 'timePerQuestion'. Either include them or remove the dependency array. You can also replace multiple useState variables with useReducer if 'setTimeLeft' needs the current value of 'timePerQuestion'                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            react-hooks/exhaustive-deps
+  525:19  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             @next/next/no-img-element
+  657:23  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             @next/next/no-img-element
+  708:11  error    Do not use an `<a>` element to navigate to `/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               @next/next/no-html-link-for-pages
+  752:21  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             @next/next/no-img-element
+
+✖ 22 problems (13 errors, 9 warnings)
+

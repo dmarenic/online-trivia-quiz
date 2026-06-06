@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
@@ -21,7 +25,9 @@ export class AuthService {
   }
 
   async register(body: RegisterDto) {
-    const { username, email, password } = body;
+    const username = body.username.trim();
+    const email = body.email.trim().toLowerCase();
+    const password = body.password;
 
     if (!username || !email || !password) {
       throw new BadRequestException('Sva polja su obavezna.');
@@ -66,7 +72,8 @@ export class AuthService {
   }
 
   async login(body: LoginDto) {
-    const { email, password } = body;
+    const email = body.email.trim().toLowerCase();
+    const password = body.password;
 
     if (!email || !password) {
       throw new BadRequestException('Email i password su obavezni.');
@@ -79,13 +86,13 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new BadRequestException('Pogrešan email ili password.');
+      throw new UnauthorizedException('Pogrešan email ili password.');
     }
 
     const valid = await bcrypt.compare(password, user.password);
 
     if (!valid) {
-      throw new BadRequestException('Pogrešan email ili password.');
+      throw new UnauthorizedException('Pogrešan email ili password.');
     }
 
     const safeUser = {

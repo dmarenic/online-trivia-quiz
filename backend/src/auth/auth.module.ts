@@ -7,7 +7,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { JwtStrategy } from './jwt.strategy';
 
 const jwtSignOptions: JwtSignOptions = {
-  expiresIn: (process.env.JWT_EXPIRES_IN ?? '7d') as JwtSignOptions['expiresIn'],
+  expiresIn: (process.env.JWT_EXPIRES_IN ??
+    '15m') as JwtSignOptions['expiresIn'],
 };
 
 @Module({

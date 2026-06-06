@@ -1,6 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
+import { apiFetch } from '../../src/lib/api';
+import Link from 'next/link';
 
 type DailyChallenge = {
   id: string;
@@ -11,67 +13,71 @@ type DailyChallenge = {
   date: string;
 };
 
+type DailyStatus = {
+  played: boolean;
+  completed?: boolean;
+};
+
 export default function DailyPage() {
   const [played, setPlayed] = useState(false);
   const [challenge, setChallenge] = useState<DailyChallenge | null>(null);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/daily-challenge`)
-      .then((res) => res.json())
-      .then((data) => setChallenge(data));
+    async function loadDailyChallenge() {
+      try {
+        const currentChallenge =
+          await apiFetch<DailyChallenge>('/daily-challenge');
 
-    const savedUser = localStorage.getItem("user");
+        setChallenge(currentChallenge);
 
-    if (savedUser) {
-      const user = JSON.parse(savedUser);
+        const token = localStorage.getItem('token');
 
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/daily-challenge/${user.id}/status`)
-        .then((res) => res.json())
-        .then((data) => setPlayed(data.played));
+        if (token) {
+          const status = await apiFetch<DailyStatus>(
+            '/daily-challenge/status/me',
+          );
+
+          setPlayed(status.played);
+        }
+      } catch (error) {
+        console.error(error);
+        setMessage('Greška kod učitavanja daily challengea.');
+      } finally {
+        setLoading(false);
+      }
     }
+
+    loadDailyChallenge();
   }, []);
 
-  const claimReward = async () => {
-    const savedUser = localStorage.getItem("user");
+  function startDailyChallenge() {
+    const token = localStorage.getItem('token');
 
-    if (!savedUser) {
-      setMessage("Moraš biti prijavljen.");
+    if (!token) {
+      setMessage('Moraš biti prijavljen za Daily Challenge.');
       return;
     }
 
-    const user = JSON.parse(savedUser);
-
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/daily-challenge/${user.id}/check`,
-      { method: "POST" }
-    );
-
-    const data = await response.json();
-
-    if (data.success) {
-      setMessage(`🎉 Osvojio si ${data.rewardXp} XP!`);
-    } else {
-      setMessage(data.message);
-    }
-  };
+    window.location.href = '/daily/play';
+  }
 
   return (
     <main className="min-h-screen bg-[#f6f9fd] p-8 text-[#233350]">
       <div className="mx-auto max-w-xl rounded-3xl border border-[#b0c9d4]/60 bg-white/85 p-8 shadow-xl backdrop-blur">
-        <a
-          href="/"
-          className="mb-6 block font-semibold text-[#7ca5b8] transition hover:text-[#233350] hover:underline"
-        >
-          ← Nazad na igru
-        </a>
+        <Link href="/">← Nazad</Link>
 
         <h1 className="mb-6 text-center text-4xl font-extrabold">
           🏅 Daily Challenge
         </h1>
 
-        {!challenge ? (
+        {loading ? (
           <p className="text-center text-[#7ca5b8]">Učitavanje...</p>
+        ) : !challenge ? (
+          <p className="text-center font-semibold text-red-500">
+            Daily Challenge trenutno nije dostupan.
+          </p>
         ) : (
           <div className="rounded-3xl border border-[#b0c9d4]/50 bg-[#f6f9fd] p-6 text-center shadow-inner">
             <h2 className="mb-3 text-2xl font-bold">{challenge.title}</h2>
@@ -82,25 +88,23 @@ export default function DailyPage() {
               Cilj: <b>{challenge.targetScore}</b> bodova
             </p>
 
+            <p className="mb-2">
+              Nagrada: <b>{challenge.rewardXp}</b> XP
+            </p>
+
             {played ? (
               <p className="mt-4 rounded-2xl bg-[#a8d8b9] p-3 font-bold text-[#233350]">
-                ✅ Daily Challenge završen danas
+                ✅ Daily Challenge si već igrao danas
               </p>
             ) : (
-              <a
-                href="/daily/play"
-                className="mt-4 block rounded-2xl bg-[#7ca5b8] p-3 font-bold text-white shadow-md transition hover:bg-[#5f8fa6] hover:shadow-lg"
+              <button
+                type="button"
+                onClick={startDailyChallenge}
+                className="mt-4 w-full rounded-2xl bg-[#7ca5b8] p-3 font-bold text-white shadow-md transition hover:bg-[#5f8fa6] hover:shadow-lg"
               >
                 ▶️ Start Daily Challenge
-              </a>
+              </button>
             )}
-
-            <button
-              onClick={claimReward}
-              className="mt-4 w-full rounded-2xl border border-[#b0c9d4] bg-white px-4 py-3 font-bold text-[#233350] transition hover:bg-[#f6f9fd]"
-            >
-              Preuzmi nagradu
-            </button>
 
             {message && <p className="mt-4 text-lg font-semibold">{message}</p>}
           </div>

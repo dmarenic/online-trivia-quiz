@@ -10,6 +10,7 @@ import { QuestionsController } from './questions/questions.controller';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { DailyChallengeModule } from './daily-challenge/daily-challenge.module';
+import { HealthController } from './health/health.controller';
 
 @Module({
   imports: [
@@ -23,7 +24,12 @@ import { DailyChallengeModule } from './daily-challenge/daily-challenge.module';
     UsersModule,
     DailyChallengeModule,
   ],
-  controllers: [AppController, LeaderboardController, QuestionsController],
+  controllers: [
+    AppController,
+    LeaderboardController,
+    QuestionsController,
+    HealthController,
+  ],
   providers: [
     AppService,
     GameGateway,

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from 'next/link';
+import Image from "next/image";
 
 type DailyResult = {
   id: string;
@@ -25,9 +27,7 @@ export default function DailyLeaderboardPage() {
   return (
     <main className="min-h-screen bg-zinc-900 p-8 text-white">
       <div className="mx-auto max-w-2xl rounded-2xl bg-zinc-800 p-8 shadow-xl">
-        <a href="/" className="mb-6 block text-blue-400 hover:underline">
-          ← Nazad na igru
-        </a>
+        <Link href="/daily">← Nazad</Link>
 
         <h1 className="mb-8 text-center text-4xl font-bold">
           🏅 Daily Leaderboard
@@ -55,13 +55,16 @@ export default function DailyLeaderboardPage() {
                       : `${index + 1}.`}
                   </span>
 
-                  <img
-                    src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${
-                      result.user?.avatar || result.nickname
-                    }`}
-                    className="h-12 w-12 rounded-full bg-zinc-800"
-                    alt="Avatar"
-                  />
+                  <Image
+  src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${
+    result.user?.avatar || result.nickname
+  }`}
+  alt="Avatar"
+  width={48}
+  height={48}
+  className="h-12 w-12 rounded-full bg-zinc-800"
+  unoptimized
+/>
 
                   <div>
                     <p className="font-bold">

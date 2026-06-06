@@ -1,11 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -75,36 +68,36 @@ export class DailyChallengeController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Get('status/me')
-  async getDailyStatus(@CurrentUser() user: any) {
-    const userId = user.id;
-    const today = new Date().toISOString().split('T')[0];
+@Get('status/me')
+async getDailyStatus(@CurrentUser() user: any) {
+  const userId = user.id;
+  const today = new Date().toISOString().split('T')[0];
 
-    const challenge = await this.prisma.dailyChallenge.findUnique({
-      where: {
-        date: today,
-      },
-    });
+  const challenge = await this.prisma.dailyChallenge.findUnique({
+    where: {
+      date: today,
+    },
+  });
 
-    if (!challenge) {
-      return {
-        played: false,
-        completed: false,
-      };
-    }
-
-    const completion = await this.prisma.dailyChallengeCompletion.findFirst({
-      where: {
-        userId,
-        challengeId: challenge.id,
-      },
-    });
-
+  if (!challenge) {
     return {
-      played: !!completion,
-      completed: !!completion,
+      played: false,
+      completed: false,
     };
   }
+
+  const attempt = await this.prisma.dailyChallengeAttempt.findFirst({
+    where: {
+      userId,
+      challengeId: challenge.id,
+    },
+  });
+
+  return {
+    played: !!attempt,
+    completed: attempt?.completed ?? false,
+  };
+}
 
   @Get(':id/questions')
   async getDailyQuestions(@Param('id') id: string) {
@@ -182,6 +175,7 @@ export class DailyChallengeController {
         id: {
           in: questionIds,
         },
+        category: challenge.category,
       },
     });
 
@@ -198,28 +192,35 @@ export class DailyChallengeController {
     const totalQuestions = questions.length;
     const score = correctAnswers * 1000;
 
+    if (totalQuestions === 0) {
+      return {
+        success: false,
+        message: 'Nema valjanih pitanja za ovaj daily challenge.',
+      };
+    }
+
     const result = await this.prisma.$transaction(async (tx) => {
-      const alreadyCompleted = await tx.dailyChallengeCompletion.findFirst({
+      const alreadyAttempted = await tx.dailyChallengeAttempt.findFirst({
         where: {
           userId,
           challengeId: challenge.id,
         },
       });
 
-      if (alreadyCompleted) {
+      if (alreadyAttempted) {
         return {
           success: true,
-          completed: true,
+          completed: alreadyAttempted.completed,
           rewardClaimed: false,
-          score,
-          correctAnswers,
-          totalQuestions,
+          score: alreadyAttempted.score,
+          correctAnswers: alreadyAttempted.correctAnswers,
+          totalQuestions: alreadyAttempted.totalQuestions,
           rewardXp: 0,
           totalXp: null,
           level: null,
           dailyStreak: null,
           unlockedAchievements: [],
-          message: 'Daily challenge je već završen danas.',
+          message: 'Daily challenge si već igrao danas.',
         };
       }
 
@@ -234,29 +235,33 @@ export class DailyChallengeController {
         },
       });
 
-      if (score < challenge.targetScore) {
-        return {
-          success: true,
-          completed: false,
-          rewardClaimed: false,
-          score,
-          correctAnswers,
-          totalQuestions,
-          rewardXp: 0,
-          totalXp: null,
-          level: null,
-          dailyStreak: null,
-          unlockedAchievements: [],
-          message: 'Nisi ispunio daily challenge.',
-        };
-      }
+      await tx.dailyChallengeAttempt.create({
+  data: {
+    userId,
+    challengeId: challenge.id,
+    score,
+    correctAnswers,
+    totalQuestions,
+    completed: score >= challenge.targetScore,
+  },
+});
 
-      await tx.dailyChallengeCompletion.create({
-        data: {
-          userId,
-          challengeId: challenge.id,
-        },
-      });
+if (score < challenge.targetScore) {
+  return {
+    success: true,
+    completed: false,
+    rewardClaimed: false,
+    score,
+    correctAnswers,
+    totalQuestions,
+    rewardXp: 0,
+    totalXp: null,
+    level: null,
+    dailyStreak: null,
+    unlockedAchievements: [],
+    message: 'Nisi ispunio daily challenge.',
+  };
+}
 
       const currentUser = await tx.user.findUnique({
         where: {

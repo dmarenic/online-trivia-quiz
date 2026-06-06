@@ -17,9 +17,9 @@ describe('AppController', () => {
   describe('root', () => {
     it('should return "Hello World!"', () => {
       expect(appController.getHello()).toEqual({
-  status: 'ok',
-  app: 'trivia-api',
-});
+        status: 'ok',
+        app: 'trivia-api',
+      });
     });
   });
 });

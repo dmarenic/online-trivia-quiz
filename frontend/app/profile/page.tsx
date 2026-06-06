@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
 import {
   CartesianGrid,
   Line,
@@ -222,21 +224,22 @@ export default function ProfilePage() {
   return (
     <main className="min-h-screen bg-zinc-900 p-8 text-white">
       <div className="mx-auto max-w-4xl rounded-2xl bg-zinc-800 p-8 shadow-xl">
-        <a href="/" className="mb-6 block text-blue-400 hover:underline">
-          ← Nazad na igru
-        </a>
+        <Link href="/">← Nazad</Link>
 
         <h1 className="mb-6 text-center text-4xl font-bold">Profil</h1>
 
         {user && (
           <div className="mb-8 rounded-xl bg-zinc-700 p-6 text-center">
-            <img
-              src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${
-                user.avatar || user.username
-              }`}
-              className="mx-auto mb-4 h-32 w-32 rounded-full bg-zinc-800"
-              alt="Avatar"
-            />
+            <Image
+  src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${
+    user.avatar || user.username
+  }`}
+  alt="Avatar"
+  width={128}
+  height={128}
+  className="mx-auto mb-4 h-32 w-32 rounded-full bg-zinc-800"
+  unoptimized
+/>
 
             <p>
               <b>Username:</b> {user.username}

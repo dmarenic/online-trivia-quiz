@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
+import Link from 'next/link';
+import Image from 'next/image';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 const socket = io(API_URL || 'http://localhost:3000', {
@@ -151,33 +153,47 @@ export default function RoomPage() {
     const mode = params.get('mode');
     const roomFromUrl = params.get('room');
 
-    let parsedUser: User | null = null;
     let finalNickname = savedNickname || 'Guest';
 
     if (savedUser) {
       const userFromStorage = JSON.parse(savedUser) as User;
 
-      parsedUser = userFromStorage;
       finalNickname = userFromStorage.username || 'Guest';
 
       setUser(userFromStorage);
       setNickname(userFromStorage.username || '');
 
-      socket.emit('join_user_channel');
+      socket?.emit('join_user_channel');
 
       fetch(`${API_URL}/users/me/friends`, {
-        headers: getAuthHeaders(),
-      })
-        .then((res) => res.json())
-        .then((data) => setFriends(Array.isArray(data) ? data : []))
-        .catch(() => setFriends([]));
+  headers: getAuthHeaders(),
+})
+  .then((res) => res.json())
+  .then((data: { friends?: Friend[] }) => {
+    setFriends(Array.isArray(data.friends) ? data.friends : []);
+  })
+  .catch(() => setFriends([]));
     } else if (savedNickname) {
       setNickname(savedNickname);
     }
 
+    socket.on('kicked_from_room', () => {
+  localStorage.removeItem('currentRoom');
+  localStorage.removeItem('lastRoomCode');
+  localStorage.removeItem('returnToRoom');
+
+  alert('Izbačen si iz sobe.');
+  window.location.href = '/';
+});
+
     socket.on('room_created', (roomData: Room) => {
       console.log('ROOM CREATED', roomData);
       setRoom(roomData);
+      saveCurrentRoom(roomData);
+localStorage.setItem(
+  'returnToRoom',
+  `/room?room=${roomData.code}`,
+);
       setSelectedCategory(roomData.selectedCategory ?? 'All');
       setTotalPlayers(roomData.players.length);
       setQuestionCount(roomData.questionCount ?? 10);
@@ -187,6 +203,11 @@ export default function RoomPage() {
 
     socket.on('room_updated', (roomData: Room) => {
       setRoom(roomData);
+      saveCurrentRoom(roomData);
+localStorage.setItem(
+  'returnToRoom',
+  `/room?room=${roomData.code}`,
+);
       setTotalPlayers(roomData.players.length);
       setSelectedCategory(roomData.selectedCategory ?? 'All');
       setQuestionCount(roomData.questionCount ?? 10);
@@ -196,10 +217,16 @@ export default function RoomPage() {
 
     socket.on('player_joined', (roomData: Room) => {
       setRoom(roomData);
+      saveCurrentRoom(roomData);
+localStorage.setItem(
+  'returnToRoom',
+  `/room?room=${roomData.code}`,
+);
       setSelectedCategory(roomData.selectedCategory ?? 'All');
       setTotalPlayers(roomData.players.length);
       saveCurrentRoom(roomData);
     });
+    
 
     socket.on('category_updated', (data: { category: string }) => {
       setSelectedCategory(data.category);
@@ -234,6 +261,12 @@ export default function RoomPage() {
         setHasAnswered(false);
         setAnswerResult(null);
         setErrorMessage('');
+        if (room) {
+  saveCurrentRoom({
+    ...room,
+    started: true,
+  });
+}
       },
     );
 
@@ -258,6 +291,29 @@ export default function RoomPage() {
         setHasAnswered(false);
         setAnswerResult(null);
         setErrorMessage('');
+        if (room) {
+  saveCurrentRoom({
+    ...room,
+    started: true,
+  });
+  socket.on('reconnected_to_game', (data) => {
+  setRoom(data.room);
+  saveCurrentRoom(data.room);
+
+  setQuestion(data.question);
+  setQuestionNumber(data.questionNumber);
+  setTotalQuestions(data.totalQuestions);
+  setAnsweredCount(data.answeredCount);
+  setTotalPlayers(data.totalPlayers);
+  setTimeLeft(data.timePerQuestion ?? 15);
+
+  setGameFinished(false);
+  setQuestionEnded(!data.room.acceptingAnswers);
+  setHasAnswered(false);
+  setAnswerResult(null);
+  setErrorMessage('');
+});
+}
       },
     );
 
@@ -323,16 +379,18 @@ export default function RoomPage() {
         playSound('finish');
         finishSoundPlayedRef.current = true;
 
-        const savedHistory = localStorage.getItem('roomGameHistory');
-        const gameHistory = savedHistory ? JSON.parse(savedHistory) : [];
+        const historyKey = `roomGameHistory:${data.room.code}`;
+const savedHistory = localStorage.getItem(historyKey);
+const gameHistory = savedHistory ? JSON.parse(savedHistory) : [];
 
-        gameHistory.push({
-          gameNumber: gameHistory.length + 1,
-          playedAt: new Date().toISOString(),
-          players: sortedPlayers,
-        });
+gameHistory.push({
+  gameNumber: gameHistory.length + 1,
+  playedAt: new Date().toISOString(),
+  roomCode: data.room.code,
+  players: sortedPlayers,
+});
 
-        localStorage.setItem('roomGameHistory', JSON.stringify(gameHistory));
+localStorage.setItem(historyKey, JSON.stringify(gameHistory));
       }
 
       setQuestion(null);
@@ -357,17 +415,21 @@ export default function RoomPage() {
 
       if (mode === 'create') {
         console.log('EMIT CREATE ROOM');
-        socket.emit('create_room', {
+        socket?.emit('create_room', {
           nickname: finalNickname,
           questionCount,
           timePerQuestion,
         });
       } else if (roomFromUrl && finalNickname) {
-        socket.emit('join_room', {
-          roomCode: roomFromUrl.toUpperCase(),
-          nickname: finalNickname,
-        });
-      } else if (savedRoom) {
+  const parsedUser = savedUser ? (JSON.parse(savedUser) as User) : null;
+
+  socket?.emit('join_room', {
+    roomCode: roomFromUrl.toUpperCase(),
+    nickname: finalNickname,
+    userId: parsedUser?.id ?? null,
+    reconnect: true,
+  });
+}else if (savedRoom) {
         const parsedRoom = JSON.parse(savedRoom) as Room;
 
         setRoom(parsedRoom);
@@ -385,6 +447,7 @@ export default function RoomPage() {
       socket.off('category_updated');
       socket.off('new_message');
       socket.off('game_started');
+      socket.off('reconnected_to_game');
       socket.off('question_started');
       socket.off('timer_updated');
       socket.off('answer_result');
@@ -392,8 +455,9 @@ export default function RoomPage() {
       socket.off('question_ended');
       socket.off('game_finished');
       socket.off('error_message');
+      socket.off('kicked_from_room');
     };
-  }, []);
+  }, [questionCount, timePerQuestion]);
 
   
 
@@ -403,7 +467,7 @@ export default function RoomPage() {
     playSound('click');
     setSelectedCategory(category);
 
-    socket.emit('set_category', {
+    socket?.emit('set_category', {
       roomCode: room.code,
       category,
     });
@@ -414,7 +478,7 @@ export default function RoomPage() {
 
     playSound('click');
 
-    socket.emit('toggle_ready', {
+    socket?.emit('toggle_ready', {
       roomCode: room.code,
     });
   }
@@ -424,7 +488,7 @@ export default function RoomPage() {
 
     playSound('click');
 
-    socket.emit('start_game', {
+    socket?.emit('start_game', {
       roomCode: room.code,
       questionCount,
       timePerQuestion,
@@ -437,7 +501,7 @@ export default function RoomPage() {
     playSound('click');
     setHasAnswered(true);
 
-    socket.emit('submit_answer', {
+    socket?.emit('submit_answer', {
       roomCode: room.code,
       answer,
     });
@@ -448,7 +512,7 @@ export default function RoomPage() {
 
     playSound('click');
 
-    socket.emit('next_question', {
+    socket?.emit('next_question', {
       roomCode: room.code,
     });
   }
@@ -458,7 +522,7 @@ export default function RoomPage() {
 
     playSound('click');
 
-    socket.emit('send_message', {
+    socket?.emit('send_message', {
       roomCode: room.code,
       nickname,
       message: chatInput,
@@ -499,6 +563,15 @@ export default function RoomPage() {
     }, 400);
   }
 
+  function kickPlayer(playerId: string) {
+  if (!room || !isHost) return;
+
+  socket.emit('kick_player', {
+    roomCode: room.code,
+    playerId,
+  });
+}
+
   if (gameFinished) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-zinc-900 p-6 text-white">
@@ -522,10 +595,13 @@ export default function RoomPage() {
                           : '🎮'}
                   </span>
 
-                  <img
+                  <Image
                     src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${player.nickname}`}
+                    width={56}
+                    height={56}
                     className="h-14 w-14 rounded-full"
-                    alt=""
+                    alt={`${player.nickname} avatar`}
+                    unoptimized
                   />
 
                   <div>
@@ -654,10 +730,13 @@ export default function RoomPage() {
                               : '🎮'}
                       </span>
 
-                      <img
+                      <Image
                         src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${player.nickname}`}
+                        width={48}
+                        height={48}
                         className="h-12 w-12 rounded-full"
-                        alt=""
+                        alt={`${player.nickname} avatar`}
+                        unoptimized
                       />
 
                       <div>
@@ -705,9 +784,7 @@ export default function RoomPage() {
             </p>
           )}
 
-          <a href="/" className="text-blue-400 hover:underline">
-            ← Nazad na početnu
-          </a>
+          <Link href="/">← Nazad</Link>
         </div>
       </main>
     );
@@ -749,10 +826,13 @@ export default function RoomPage() {
                   className="flex items-center justify-between rounded-lg bg-zinc-800 p-4"
                 >
                   <div className="flex items-center gap-3">
-                    <img
+                    <Image
                       src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${player.nickname}`}
+                      width={48}
+                      height={48}
                       className="h-12 w-12 rounded-full"
-                      alt=""
+                      alt={`${player.nickname} avatar`}
+                      unoptimized
                     />
 
                     <div>
@@ -769,13 +849,25 @@ export default function RoomPage() {
                     </div>
                   </div>
 
-                  <span
-                    className={`rounded-lg px-3 py-1 text-sm font-bold ${
-                      player.isReady ? 'bg-green-600' : 'bg-zinc-600'
-                    }`}
-                  >
-                    {player.isReady ? 'Ready' : 'Not ready'}
-                  </span>
+                  <div className="flex items-center gap-2">
+  <span
+    className={`rounded-lg px-3 py-1 text-sm font-bold ${
+      player.isReady ? 'bg-green-600' : 'bg-zinc-600'
+    }`}
+  >
+    {player.isReady ? 'Ready' : 'Not ready'}
+  </span>
+
+  {isHost && player.id !== room.hostId && player.id !== currentPlayer?.id && (
+    <button
+      type="button"
+      onClick={() => kickPlayer(player.id)}
+      className="rounded-lg bg-red-600 px-3 py-1 text-sm font-bold hover:bg-red-700"
+    >
+      Izbaci
+    </button>
+  )}
+</div>
                 </div>
               ))}
             </div>
@@ -802,10 +894,19 @@ export default function RoomPage() {
               className="mb-4 w-full rounded-lg p-3 text-black disabled:opacity-50"
             >
               <option value="All">Sve kategorije</option>
-              <option value="Geografija">Geografija</option>
-              <option value="Matematika">Matematika</option>
-              <option value="Računarstvo">Računarstvo</option>
               <option value="Sport">Sport</option>
+              <option value="Geografija">Geografija</option>
+              <option value="Računarstvo">Računarstvo</option>
+              <option value="Povijest">Povijest</option>
+              <option value="Znanost">Znanost</option>
+              <option value="Književnost">Književnost</option>
+              <option value="Umjetnost">Umjetnost</option>
+              <option value="Glazba">Glazba</option>
+              <option value="Videoigre">Videoigre</option>
+              <option value="Trendovi i aktualnosti">Trendovi i aktualnosti</option>
+              <option value="Poslovanje i brendovi">Poslovanje i brendovi</option>
+              <option value="Životinje">Životinje</option>
+              <option value="Ljudsko tijelo i zdravlje">Ljudsko tijelo i zdravlje</option>
             </select>
 
             <label className="mb-2 block text-sm text-zinc-300">

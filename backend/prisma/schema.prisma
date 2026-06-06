@@ -34,6 +34,9 @@ model Question {
   optionD       String
   correctAnswer String
   createdAt     DateTime @default(now())
+
+  @@index([category])
+  @@unique([category, question])
 }
 
 model User {
@@ -57,6 +60,8 @@ model User {
 
   xp Int @default(0)
   level Int @default(1)
+
+  dailyChallengeAttempts DailyChallengeAttempt[]
   
   sentRoomInvites     RoomInvite[] @relation("SentRoomInvites")
   receivedRoomInvites RoomInvite[] @relation("ReceivedRoomInvites")
@@ -80,6 +85,7 @@ model Friend {
   id         String   @id @default(cuid())
   senderId   String
   receiverId String
+  status String @default("pending")
   createdAt  DateTime @default(now())
 
   sender   User @relation("FriendSender", fields: [senderId], references: [id])
@@ -99,6 +105,8 @@ model DailyChallenge {
   category      String @default("Sport")
   questionCount Int @default(5)
 
+  attempts DailyChallengeAttempt[]
+
   completions DailyChallengeCompletion[]
 }
 
@@ -112,6 +120,24 @@ model DailyChallengeCompletion {
   challenge   DailyChallenge @relation(fields: [challengeId], references: [id])
 
   completedAt DateTime @default(now())
+
+  @@unique([userId, challengeId])
+  @@index([userId])
+  @@index([challengeId])
+}
+
+model DailyChallengeAttempt {
+  id          String   @id @default(cuid())
+  userId      String
+  challengeId String
+  score       Int
+  correctAnswers Int
+  totalQuestions Int
+  completed   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  user      User           @relation(fields: [userId], references: [id])
+  challenge DailyChallenge @relation(fields: [challengeId], references: [id])
 
   @@unique([userId, challengeId])
   @@index([userId])
