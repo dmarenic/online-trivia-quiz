@@ -36,10 +36,27 @@ export default function DailyLeaderboardPage() {
   const [results, setResults] = useState<DailyResult[]>([]);
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/daily-challenge/leaderboard`)
-      .then((res) => res.json())
-      .then((data) => setResults(data));
-  }, []);
+  async function loadLeaderboard() {
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/daily-challenge/leaderboard`,
+      );
+
+      if (!res.ok) {
+        throw new Error('Greška kod dohvaćanja daily leaderboarda.');
+      }
+
+      const data = await res.json();
+
+      setResults(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error(error);
+      setResults([]);
+    }
+  }
+
+  loadLeaderboard();
+}, []);
 
   const topScore = results[0]?.score ?? 0;
 

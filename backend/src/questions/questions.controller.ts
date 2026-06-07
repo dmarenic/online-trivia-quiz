@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import { GoogleGenAI } from '@google/genai';
 import { PrismaService } from '../prisma/prisma.service';
@@ -32,6 +33,21 @@ export class QuestionsController {
   });
 
   constructor(private prisma: PrismaService) {}
+
+  private validateCorrectAnswer(body: QuestionDto) {
+    const options = [
+      body.optionA,
+      body.optionB,
+      body.optionC,
+      body.optionD,
+    ];
+
+    if (!options.includes(body.correctAnswer)) {
+      throw new BadRequestException(
+        'Točan odgovor mora biti jednak jednoj od ponuđenih opcija.',
+      );
+    }
+  }
 
   @Get()
   async getQuestions() {
@@ -203,6 +219,7 @@ Pravila:
   @UseGuards(JwtAuthGuard, AdminGuard)
   @Post()
   async createQuestion(@Body() body: QuestionDto) {
+    this.validateCorrectAnswer(body);
     return this.prisma.question.create({
       data: {
         category: body.category,
@@ -229,6 +246,7 @@ Pravila:
   @UseGuards(JwtAuthGuard, AdminGuard)
   @Patch(':id')
   async updateQuestion(@Param('id') id: string, @Body() body: QuestionDto) {
+    this.validateCorrectAnswer(body);
     return this.prisma.question.update({
       where: {
         id,

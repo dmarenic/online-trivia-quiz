@@ -10,10 +10,6 @@ type Achievement = {
   unlockedAt: string | null;
 };
 
-type User = {
-  id: string;
-};
-
 const shellClass =
   'min-h-screen bg-[radial-gradient(circle_at_50%_-10%,rgba(65,90,119,0.2),transparent_34%),linear-gradient(180deg,#0D1B2A_0%,#071523_100%)] text-[#E0E1DD]';
 
@@ -31,51 +27,47 @@ export default function AchievementsPage() {
   useEffect(() => {
     async function loadAchievements() {
       const savedUser = localStorage.getItem('user');
+    const token = localStorage.getItem('token');
 
-      if (!savedUser) {
-        window.location.replace('/login');
-        return;
-      }
+    if (!savedUser || !token) {
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      window.location.replace('/login');
+      return;
+    }
 
       try {
+  const token = localStorage.getItem('token');
 
-        const token = localStorage.getItem('token');
+  if (!token) {
+    window.location.replace('/login');
+    return;
+  }
 
-const res = await fetch(
-  `${process.env.NEXT_PUBLIC_API_URL}/users/me/results`,
-  {
-    headers: {
-      Authorization: `Bearer ${token}`,
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/users/me/achievements`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     },
-  },
-);
-        if (!res.ok) {
-  const text = await res.text();
-  console.error('Achievements error:', res.status, text);
-  throw new Error('Greška kod dohvaćanja achievementa.');
-}
+  );
 
-        const data = await res.json();
+  if (!res.ok) {
+    const text = await res.text();
+    console.error('Achievements error:', res.status, text);
+    throw new Error('Greška kod dohvaćanja achievementa.');
+  }
 
-const achievementList = Array.isArray(data.achievements)
-  ? data.achievements
-  : [];
+  const data = await res.json();
 
-setAchievements(
-  achievementList.map((achievement: any) => ({
-    title: achievement.title,
-    description: achievement.description,
-    unlocked: true,
-    unlockedAt: achievement.createdAt || achievement.unlockedAt || null,
-  })),
-);
-      } catch (error) {
-        console.error(error);
-        setMessage('Greška kod učitavanja achievementa.');
-      } finally {
-        setLoading(false);
-      }
-    }
+  setAchievements(Array.isArray(data) ? data : []);
+} catch (error) {
+  console.error(error);
+  setMessage('Greška kod učitavanja achievementa.');
+} finally {
+  setLoading(false);
+}}
 
     loadAchievements();
   }, []);

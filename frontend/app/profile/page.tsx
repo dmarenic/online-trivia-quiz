@@ -102,6 +102,8 @@ export default function ProfilePage() {
   const [matchHistory, setMatchHistory] = useState<MatchHistoryItem[]>([]);
   const [roomInvites, setRoomInvites] = useState<RoomInvite[]>([]);
   const [avatarInput, setAvatarInput] = useState('');
+  const [toast, setToast] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
 
   useEffect(() => {
     async function loadProfile() {
@@ -109,9 +111,11 @@ export default function ProfilePage() {
       const token = localStorage.getItem('token');
 
       if (!savedUser || !token) {
-        window.location.href = '/login';
-        return;
-      }
+  localStorage.removeItem('user');
+  localStorage.removeItem('token');
+  window.location.replace('/login');
+  return;
+}
 
       const parsedUser: User = JSON.parse(savedUser);
 
@@ -123,6 +127,9 @@ export default function ProfilePage() {
           `${process.env.NEXT_PUBLIC_API_URL}/users/me/stats`,
           { headers: getAuthHeaders() },
         );
+        if (!statsRes.ok) {
+  throw new Error('Greška kod učitavanja statistike.');
+}
         const statsData = await statsRes.json();
         setStats(statsData);
       } catch (err) {
@@ -134,6 +141,9 @@ export default function ProfilePage() {
           `${process.env.NEXT_PUBLIC_API_URL}/users/me/match-history`,
           { headers: getAuthHeaders() },
         );
+        if (!historyRes.ok) {
+  throw new Error('Greška kod učitavanja povijesti mečeva.');
+}
         const historyData = await historyRes.json();
         setMatchHistory(Array.isArray(historyData) ? historyData : []);
       } catch (err) {
@@ -145,6 +155,9 @@ export default function ProfilePage() {
           `${process.env.NEXT_PUBLIC_API_URL}/users/me/results`,
           { headers: getAuthHeaders() },
         );
+        if (!resultsRes.ok) {
+  throw new Error('Greška kod učitavanja rezultata.');
+}
         const resultsData = await resultsRes.json();
 
         setResults(resultsData.results || []);
@@ -167,6 +180,9 @@ export default function ProfilePage() {
           `${process.env.NEXT_PUBLIC_API_URL}/users/me/room-invites`,
           { headers: getAuthHeaders() },
         );
+        if (!invitesRes.ok) {
+  throw new Error('Greška kod učitavanja pozivnica.');
+}
         const invitesData = await invitesRes.json();
         setRoomInvites(Array.isArray(invitesData) ? invitesData : []);
       } catch (err) {
@@ -176,6 +192,15 @@ export default function ProfilePage() {
 
     loadProfile();
   }, []);
+
+  function showToast(message: string, type: 'success' | 'error' = 'success') {
+  setToast(message);
+  setToastType(type);
+
+  setTimeout(() => {
+    setToast('');
+  }, 3000);
+}
 
   async function updateAvatar() {
     if (!user || !avatarInput.trim()) return;
@@ -192,7 +217,11 @@ export default function ProfilePage() {
     );
 
     if (!res.ok) {
-      alert('Greška kod spremanja avatara.');
+      showToast('Avatar nije spremljen. Pokušaj ponovno.', 'error');
+
+setTimeout(() => {
+  setToast('');
+}, 3000);
       return;
     }
 
@@ -217,7 +246,11 @@ export default function ProfilePage() {
     );
 
     if (!res.ok) {
-      alert('Greška kod brisanja pozivnice.');
+      showToast('Pozivnica nije obrisana. Pokušaj ponovno.', 'error');
+
+setTimeout(() => {
+  setToast('');
+}, 3000);
       return;
     }
 
@@ -582,6 +615,17 @@ export default function ProfilePage() {
           </aside>
         </div>
       </div>
+      {toast && (
+  <div
+    className={`fixed bottom-5 right-5 z-50 rounded-2xl border px-5 py-3 font-bold shadow-xl backdrop-blur ${
+      toastType === 'success'
+        ? 'border-[#388E3C]/30 bg-[#388E3C]/15 text-[#75d27a]'
+        : 'border-[#C62828]/30 bg-[#C62828]/15 text-[#ffb4b4]'
+    }`}
+  >
+    {toast}
+  </div>
+)}
     </main>
   );
 }

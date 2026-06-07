@@ -144,7 +144,9 @@ export default function Home() {
         },
       );
 
-      if (!res.ok) return;
+      if (!res.ok) {
+        throw new Error('Greška kod učitavanja pozivnica.');
+      }
 
       const data = await res.json();
       const fetchedInvites: Invite[] = Array.isArray(data) ? data : [];
@@ -248,20 +250,22 @@ export default function Home() {
   }
 
   async function rejectInvite(inviteId: string) {
-    setInvites((prev) => prev.filter((invite) => invite.id !== inviteId));
+  setInvites((prev) => prev.filter((invite) => invite.id !== inviteId));
 
-    const token = localStorage.getItem('token');
+  const token = localStorage.getItem('token');
 
-    await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/users/me/room-invites/${inviteId}`,
-      {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+  if (!token) return;
+
+  await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/users/me/room-invites/${inviteId}`,
+    {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
       },
-    ).catch(() => {});
-  }
+    },
+  ).catch(() => {});
+}
 
   return (
     <main className={`${shellClass} px-4 py-5 sm:px-6 lg:px-8`}>

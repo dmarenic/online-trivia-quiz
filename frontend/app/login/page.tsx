@@ -9,10 +9,27 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
+
+  function showToast(message: string, type: 'success' | 'error' = 'success') {
+  setToast(message);
+  setToastType(type);
+
+  setTimeout(() => {
+    setToast('');
+  }, 3000);
+}
 
   async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
+  e.preventDefault();
 
+  if (loading) return;
+
+  setLoading(true);
+
+  try {
     const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
       method: "POST",
       headers: {
@@ -27,15 +44,27 @@ export default function LoginPage() {
     const data = await res.json();
 
     if (!res.ok) {
-      alert(data.message || "Greška kod prijave");
-      return;
-    }
+  showToast(
+    data.message || 'Prijava nije uspjela. Provjeri email i lozinku.',
+    'error',
+  );
+  return;
+}
 
     localStorage.setItem("user", JSON.stringify(data.user));
     localStorage.setItem("token", data.accessToken);
 
     router.push("/");
+  } catch (error) {
+    console.error(error);
+    showToast(
+  'Trenutno nije moguće povezati se s poslužiteljem. Pokušaj ponovno za nekoliko trenutaka.',
+  'error',
+);
+  } finally {
+    setLoading(false);
   }
+}
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_50%_-10%,rgba(65,90,119,0.2),transparent_34%),linear-gradient(180deg,#0D1B2A_0%,#071523_100%)] px-4 py-6 text-[#E0E1DD] sm:px-6 lg:px-8">
@@ -131,9 +160,13 @@ export default function LoginPage() {
                 />
               </div>
 
-              <button className="w-full rounded-2xl bg-[#415A77] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#4f6d8f] hover:shadow-lg hover:shadow-black/20 active:translate-y-0">
-                Prijavi se
-              </button>
+              <button
+  type="submit"
+  disabled={loading}
+  className="w-full rounded-2xl bg-[#415A77] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#4f6d8f] hover:shadow-lg hover:shadow-black/20 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+>
+  {loading ? "Prijava..." : "Prijavi se"}
+</button>
             </form>
 
             <div className="mt-6 rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/45 p-4 text-center">
@@ -150,6 +183,17 @@ export default function LoginPage() {
           </section>
         </div>
       </div>
+      {toast && (
+  <div
+    className={`fixed bottom-5 right-5 z-50 rounded-2xl border px-5 py-3 font-bold shadow-xl backdrop-blur ${
+      toastType === 'success'
+        ? 'border-[#388E3C]/30 bg-[#388E3C]/15 text-[#75d27a]'
+        : 'border-[#C62828]/30 bg-[#C62828]/15 text-[#ffb4b4]'
+    }`}
+  >
+    {toast}
+  </div>
+)}
     </main>
   );
 }

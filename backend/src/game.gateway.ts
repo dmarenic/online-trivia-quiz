@@ -468,6 +468,13 @@ export class GameGateway implements OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
   ) {
     const authUser = this.getUserFromSocket(client);
+    if (this.isRateLimited(`invite_${client.id}`, 5, 60000)) {
+  client.emit(
+    'error_message',
+    'Previše pozivnica. Pričekaj minutu prije novog slanja.',
+  );
+  return;
+}
 
     if (!authUser) {
       client.emit('error_message', 'Nisi prijavljen.');

@@ -51,12 +51,17 @@ export default function FriendsPage() {
   const [incomingRequests, setIncomingRequests] = useState<Friend[]>([]);
   const [outgoingRequests, setOutgoingRequests] = useState<Friend[]>([]);
   const [message, setMessage] = useState('');
+  const [addingFriend, setAddingFriend] = useState(false);
+  const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
 
   const loadFriends = useCallback(async () => {
     const token = localStorage.getItem('token');
 
     if (!token) {
-      router.push('/login');
+      localStorage.removeItem('user');
+  localStorage.removeItem('token');
+
+  router.replace('/login');
       return;
     }
 
@@ -87,11 +92,15 @@ export default function FriendsPage() {
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
+const token = localStorage.getItem('token');
 
-    if (!savedUser) {
-      router.push('/login');
-      return;
-    }
+if (!savedUser || !token) {
+  localStorage.removeItem('user');
+  localStorage.removeItem('token');
+
+  router.replace('/login');
+  return;
+}
 
     try {
       const parsedUser: User = JSON.parse(savedUser);
@@ -99,31 +108,31 @@ export default function FriendsPage() {
     } catch {
       localStorage.removeItem('user');
       localStorage.removeItem('token');
-      router.push('/login');
+      router.replace('/login');
       return;
     }
 
     loadFriends();
 
-    const interval = window.setInterval(() => {
-      loadFriends();
-    }, 2000);
-
-    return () => {
-      window.clearInterval(interval);
-    };
+    
   }, [loadFriends, router]);
 
   async function addFriend(e: React.FormEvent) {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (!user || !username.trim()) return;
+  if (addingFriend) return;
+  if (!user || !username.trim()) return;
 
+  setAddingFriend(true);
+
+  try {
     const token = localStorage.getItem('token');
 
     if (!token) {
-      router.push('/login');
-      return;
+      localStorage.removeItem('user');
+localStorage.removeItem('token');
+router.replace('/login');
+return;
     }
 
     const res = await fetch(
@@ -142,17 +151,28 @@ export default function FriendsPage() {
 
     const data = await res.json();
 
-    if (!data.success) {
+    if (!res.ok || !data.success) {
       setMessage(data.message || 'Greška kod slanja zahtjeva.');
       return;
     }
 
     setUsername('');
     setMessage(data.message || 'Zahtjev za prijateljstvo poslan.');
-    loadFriends();
+    await loadFriends();
+  } catch (error) {
+    console.error(error);
+    setMessage('Greška kod slanja zahtjeva.');
+  } finally {
+    setAddingFriend(false);
   }
+}
 
   async function acceptRequest(requestId: string) {
+  if (processingRequestId) return;
+
+  setProcessingRequestId(requestId);
+
+  try {
     const token = localStorage.getItem('token');
 
     if (!token) {
@@ -160,7 +180,7 @@ export default function FriendsPage() {
       return;
     }
 
-    await fetch(
+    const res = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/users/me/friends/${requestId}/accept`,
       {
         method: 'PATCH',
@@ -170,11 +190,26 @@ export default function FriendsPage() {
       },
     );
 
-    setMessage('Zahtjev prihvaćen.');
-    loadFriends();
-  }
+    if (!res.ok) {
+      throw new Error('Greška kod prihvaćanja zahtjeva.');
+    }
 
-  async function rejectRequest(requestId: string) {
+    setMessage('Zahtjev prihvaćen.');
+    await loadFriends();
+  } catch (error) {
+    console.error(error);
+    setMessage('Greška kod prihvaćanja zahtjeva.');
+  } finally {
+    setProcessingRequestId(null);
+  }
+}
+
+async function rejectRequest(requestId: string) {
+  if (processingRequestId) return;
+
+  setProcessingRequestId(requestId);
+
+  try {
     const token = localStorage.getItem('token');
 
     if (!token) {
@@ -182,7 +217,7 @@ export default function FriendsPage() {
       return;
     }
 
-    await fetch(
+    const res = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/users/me/friends/${requestId}/reject`,
       {
         method: 'DELETE',
@@ -192,9 +227,19 @@ export default function FriendsPage() {
       },
     );
 
+    if (!res.ok) {
+      throw new Error('Greška kod odbijanja zahtjeva.');
+    }
+
     setMessage('Zahtjev odbijen.');
-    loadFriends();
+    await loadFriends();
+  } catch (error) {
+    console.error(error);
+    setMessage('Greška kod odbijanja zahtjeva.');
+  } finally {
+    setProcessingRequestId(null);
   }
+}
 
   function getFriendName(friend: Friend) {
     if (!user) return '';
@@ -266,9 +311,13 @@ export default function FriendsPage() {
               onChange={(e) => setUsername(e.target.value)}
             />
 
-            <button type="submit" className={primaryButtonClass}>
-              Dodaj
-            </button>
+            <button
+  type="submit"
+  disabled={addingFriend}
+  className={primaryButtonClass}
+>
+  {addingFriend ? 'Šaljem...' : 'Dodaj'}
+</button>
           </form>
 
           {message && (
@@ -282,7 +331,13 @@ export default function FriendsPage() {
           <section className={`${cardClass} p-5 sm:p-6`}>
             <div className="mb-5 flex items-center justify-between gap-3">
               <h2 className="text-2xl font-black">Zahtjevi za prijateljstvo</h2>
-
+              <button
+  type="button"
+  onClick={loadFriends}
+  className="rounded-full border border-[#778DA9]/20 px-3 py-1 text-xs font-black text-[#B8C4D6] transition hover:border-[#778DA9]/45 hover:bg-[#415A77]/20"
+>
+  Osvježi
+</button>
               <span className="rounded-full border border-[#778DA9]/20 bg-[#415A77]/20 px-3 py-1 text-xs font-black uppercase tracking-wider text-[#B8C4D6]">
                 {incomingRequests.length} pending
               </span>
@@ -310,20 +365,22 @@ export default function FriendsPage() {
 
                     <div className="grid grid-cols-2 gap-2 sm:flex">
                       <button
-                        type="button"
-                        onClick={() => acceptRequest(request.id)}
-                        className={successButtonClass}
-                      >
-                        Prihvati
-                      </button>
+  type="button"
+  onClick={() => acceptRequest(request.id)}
+  disabled={processingRequestId === request.id}
+  className={successButtonClass}
+>
+  {processingRequestId === request.id ? '...' : 'Prihvati'}
+</button>
 
                       <button
-                        type="button"
-                        onClick={() => rejectRequest(request.id)}
-                        className={dangerButtonClass}
-                      >
-                        Odbij
-                      </button>
+  type="button"
+  onClick={() => rejectRequest(request.id)}
+  disabled={processingRequestId === request.id}
+  className={dangerButtonClass}
+>
+  {processingRequestId === request.id ? '...' : 'Odbij'}
+</button>
                     </div>
                   </div>
                 ))}

@@ -7,6 +7,7 @@ import Image from 'next/image';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 const socket = io(API_URL || 'http://localhost:3000', {
+  autoConnect: false,
   auth: {
     token:
       typeof window !== 'undefined'
@@ -120,10 +121,21 @@ export default function RoomPage() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [selectedDifficulty, setSelectedDifficulty] = useState('All');
+  const [invitingFriendId, setInvitingFriendId] = useState<string | null>(null);
+  const [toast, setToast] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
+  
 
   const finishSoundPlayedRef = useRef(false);
   const initializedRef = useRef(false);
+function showToast(message: string, type: 'success' | 'error' = 'success') {
+  setToast(message);
+  setToastType(type);
 
+  setTimeout(() => {
+    setToast('');
+  }, 3000);
+}
   const [answerResult, setAnswerResult] = useState<{
     isCorrect: boolean;
     correctAnswer: string;
@@ -177,6 +189,13 @@ export default function RoomPage() {
   }
 
   useEffect(() => {
+    socket.auth = {
+  token: localStorage.getItem('token'),
+};
+
+if (!socket.connected) {
+  socket.connect();
+}
     const savedUser = localStorage.getItem('user');
     const savedNickname = localStorage.getItem('nickname');
     const savedRoom = localStorage.getItem('currentRoom');
@@ -198,9 +217,15 @@ export default function RoomPage() {
       socket?.emit('join_user_channel');
 
       fetch(`${API_URL}/users/me/friends`, {
-        headers: getAuthHeaders(),
-      })
-        .then((res) => res.json())
+  headers: getAuthHeaders(),
+})
+  .then((res) => {
+    if (!res.ok) {
+      throw new Error('Greška kod dohvaćanja prijatelja.');
+    }
+
+    return res.json();
+  })
         .then((data: { friends?: Friend[] }) => {
           setFriends(Array.isArray(data.friends) ? data.friends : []);
         })
@@ -213,8 +238,7 @@ export default function RoomPage() {
       localStorage.removeItem('currentRoom');
       localStorage.removeItem('lastRoomCode');
       localStorage.removeItem('returnToRoom');
-
-      alert('Izbačen si iz sobe.');
+      showToast('Izbačen si iz sobe.', 'error');
       window.location.href = '/';
     });
 
@@ -320,23 +344,6 @@ export default function RoomPage() {
           saveCurrentRoom({
             ...room,
             started: true,
-          });
-          socket.on('reconnected_to_game', (data) => {
-            setRoom(data.room);
-            saveCurrentRoom(data.room);
-
-            setQuestion(data.question);
-            setQuestionNumber(data.questionNumber);
-            setTotalQuestions(data.totalQuestions);
-            setAnsweredCount(data.answeredCount);
-            setTotalPlayers(data.totalPlayers);
-            setTimeLeft(data.timePerQuestion ?? 15);
-
-            setGameFinished(false);
-            setQuestionEnded(!data.room.acceptingAnswers);
-            setHasAnswered(false);
-            setAnswerResult(null);
-            setErrorMessage('');
           });
         }
       },
@@ -542,22 +549,33 @@ export default function RoomPage() {
   }
 
   function sendMessage() {
-    if (!room || !chatInput.trim()) return;
+  const trimmedMessage = chatInput.trim();
 
-    playSound('click');
+  if (!room || !trimmedMessage) return;
 
-    socket?.emit('send_message', {
-      roomCode: room.code,
-      nickname,
-      message: chatInput,
-    });
-
-    setChatInput('');
+  if (trimmedMessage.length > 300) {
+    setErrorMessage('Poruka može imati najviše 300 znakova.');
+    return;
   }
 
-  async function inviteFriend(friendId: string) {
-    if (!user || !room) return;
+  playSound('click');
 
+  socket?.emit('send_message', {
+    roomCode: room.code,
+    nickname,
+    message: trimmedMessage,
+  });
+
+  setChatInput('');
+}
+
+  async function inviteFriend(friendId: string) {
+  if (!user || !room) return;
+  if (invitingFriendId) return;
+
+  setInvitingFriendId(friendId);
+
+  try {
     playSound('click');
 
     const res = await fetch(`${API_URL}/users/invite-room`, {
@@ -570,12 +588,22 @@ export default function RoomPage() {
     });
 
     if (!res.ok) {
-      alert('Greška kod slanja pozivnice.');
+      showToast('Pozivnica nije poslana. Pokušaj ponovno.', 'error');
+
       return;
     }
 
-    alert('Pozivnica poslana!');
+    showToast('Pozivnica je uspješno poslana.', 'success');
+  } catch (error) {
+  console.error(error);
+  showToast(
+    'Došlo je do pogreške prilikom slanja pozivnice.',
+    'error'
+  );
+} finally {
+    setInvitingFriendId(null);
   }
+}
 
   function leaveRoom() {
     playSound('leave-room');
@@ -983,13 +1011,18 @@ export default function RoomPage() {
                   </div>
                 ))}
               </div>
-
+              
+                {!isHost && (
               <button
                 onClick={toggleReady}
-                className={`${successButtonClass} mt-6 w-full`}
+  className={`mt-6 w-full rounded-2xl px-5 py-3 font-bold text-white transition ${
+    currentPlayer?.isReady
+      ? 'bg-[#C62828] hover:bg-[#b71c1c]'
+      : 'bg-[#388E3C] hover:bg-[#2e7d32]'
+  }`}
               >
                 {currentPlayer?.isReady ? 'Makni ready' : 'Ready'}
-              </button>
+              </button>)}
             </section>
 
             {friends.length > 0 && (
@@ -1004,15 +1037,18 @@ export default function RoomPage() {
 
                     return (
                       <button
-                        key={friendData.id}
-                        onClick={() => inviteFriend(friendData.id)}
-                        className="rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/55 p-4 text-left transition hover:-translate-y-0.5 hover:border-[#778DA9]/35 hover:bg-[#0D1B2A]/75"
-                      >
-                        <p className="font-black">{friendData.username}</p>
-                        <p className="text-sm text-[#778DA9]">
-                          Pošalji pozivnicu
-                        </p>
-                      </button>
+  key={friendData.id}
+  onClick={() => inviteFriend(friendData.id)}
+  disabled={invitingFriendId === friendData.id}
+  className="rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/55 p-4 text-left transition hover:-translate-y-0.5 hover:border-[#778DA9]/35 hover:bg-[#0D1B2A]/75 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+>
+  <p className="font-black">{friendData.username}</p>
+  <p className="text-sm text-[#778DA9]">
+    {invitingFriendId === friendData.id
+      ? 'Šaljem pozivnicu...'
+      : 'Pošalji pozivnicu'}
+  </p>
+</button>
                     );
                   })}
                 </div>
@@ -1172,6 +1208,17 @@ export default function RoomPage() {
           </div>
         </div>
       </div>
+      {toast && (
+  <div
+    className={`fixed bottom-5 right-5 z-50 rounded-2xl border px-5 py-3 font-bold shadow-xl backdrop-blur ${
+      toastType === 'success'
+        ? 'border-[#388E3C]/30 bg-[#388E3C]/15 text-[#75d27a]'
+        : 'border-[#C62828]/30 bg-[#C62828]/15 text-[#ffb4b4]'
+    }`}
+  >
+    {toast}
+  </div>
+)}
     </main>
   );
 }

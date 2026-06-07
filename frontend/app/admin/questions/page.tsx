@@ -74,6 +74,7 @@ const ghostButtonClass =
   'rounded-2xl border border-[#778DA9]/20 px-5 py-3 font-bold text-[#B8C4D6] transition hover:border-[#778DA9]/45 hover:bg-[#415A77]/20';
 
 export default function AdminQuestionsPage() {
+  const [saving, setSaving] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -92,7 +93,7 @@ export default function AdminQuestionsPage() {
   async function fetchQuestions() {
     try {
       setLoadingQuestions(true);
-      const data = await apiFetch<Question[]>('/questions');
+      const data = await apiFetch<Question[]>('/questions/admin');
       setQuestions(data);
     } catch (error) {
       console.error(error);
@@ -105,12 +106,15 @@ export default function AdminQuestionsPage() {
   useEffect(() => {
     async function initialize() {
       const savedUser = localStorage.getItem('user');
-      const token = localStorage.getItem('token');
+const token = localStorage.getItem('token');
 
-      if (!savedUser || !token) {
-        window.location.replace('/login');
-        return;
-      }
+if (!savedUser || !token) {
+  localStorage.removeItem('user');
+  localStorage.removeItem('token');
+
+  window.location.replace('/login');
+  return;
+}
 
       try {
         const parsedUser: User = JSON.parse(savedUser);
@@ -192,6 +196,26 @@ export default function AdminQuestionsPage() {
       return false;
     }
 
+    if (form.question.trim().length < 5) {
+  setFormMessage('Pitanje mora imati barem 5 znakova.');
+  return false;
+}
+
+if (form.category.trim().length < 2) {
+  setFormMessage('Kategorija mora imati barem 2 znaka.');
+  return false;
+}
+
+if (
+  form.optionA.trim().length < 1 ||
+  form.optionB.trim().length < 1 ||
+  form.optionC.trim().length < 1 ||
+  form.optionD.trim().length < 1
+) {
+  setFormMessage('Svi odgovori moraju biti popunjeni.');
+  return false;
+}
+
     const validAnswers = ['A', 'B', 'C', 'D'];
 
     if (!validAnswers.includes(form.correctAnswer.trim().toUpperCase())) {
@@ -207,19 +231,32 @@ export default function AdminQuestionsPage() {
 
     if (!user) return;
 
+    if (saving) return;
+
+setSaving(true);
+
     setFormMessage('');
 
     if (!validateForm()) return;
 
-    const body = {
-      category: form.category.trim(),
-      question: form.question.trim(),
-      optionA: form.optionA.trim(),
-      optionB: form.optionB.trim(),
-      optionC: form.optionC.trim(),
-      optionD: form.optionD.trim(),
-      correctAnswer: form.correctAnswer.trim().toUpperCase(),
-    };
+    const optionMap = {
+  A: form.optionA.trim(),
+  B: form.optionB.trim(),
+  C: form.optionC.trim(),
+  D: form.optionD.trim(),
+};
+
+const selectedKey = form.correctAnswer.trim().toUpperCase() as keyof typeof optionMap;
+
+const body = {
+  category: form.category.trim(),
+  question: form.question.trim(),
+  optionA: form.optionA.trim(),
+  optionB: form.optionB.trim(),
+  optionC: form.optionC.trim(),
+  optionD: form.optionD.trim(),
+  correctAnswer: optionMap[selectedKey],
+};
 
     try {
       if (editingId) {
@@ -244,7 +281,9 @@ export default function AdminQuestionsPage() {
     } catch (error) {
       console.error(error);
       setFormMessage('Greška kod spremanja pitanja. Provjeri admin prava.');
-    }
+    } finally {
+  setSaving(false);
+}
   }
 
   function startEditing(question: Question) {
@@ -257,7 +296,16 @@ export default function AdminQuestionsPage() {
       optionB: question.optionB,
       optionC: question.optionC,
       optionD: question.optionD,
-      correctAnswer: question.correctAnswer,
+      correctAnswer:
+  question.correctAnswer === question.optionA
+    ? 'A'
+    : question.correctAnswer === question.optionB
+      ? 'B'
+      : question.correctAnswer === question.optionC
+        ? 'C'
+        : question.correctAnswer === question.optionD
+          ? 'D'
+          : '',
     });
 
     setFormMessage('');
@@ -284,6 +332,9 @@ export default function AdminQuestionsPage() {
       console.error(error);
       setFormMessage('Greška kod brisanja pitanja. Provjeri admin prava.');
     }
+    finally {
+  setSaving(false);
+}
   }
 
   function logout() {
@@ -515,9 +566,17 @@ export default function AdminQuestionsPage() {
                 </label>
               </div>
 
-              <button type="submit" className={`${successButtonClass} mt-6 w-full`}>
-                {editingId ? 'Spremi promjene' : 'Dodaj pitanje'}
-              </button>
+              <button
+  type="submit"
+  disabled={saving}
+  className={`${successButtonClass} mt-6 w-full`}
+>
+  {saving
+    ? 'Spremanje...'
+    : editingId
+      ? 'Spremi promjene'
+      : 'Dodaj pitanje'}
+</button>
 
               {editingId && (
                 <button
@@ -596,7 +655,7 @@ export default function AdminQuestionsPage() {
                         <div
                           key={label}
                           className={`rounded-2xl border p-3 text-sm ${
-                            q.correctAnswer === label
+                            q.correctAnswer === value
                               ? 'border-[#388E3C]/35 bg-[#388E3C]/15 text-[#E0E1DD]'
                               : 'border-[#778DA9]/15 bg-[#1B263B]/50 text-[#B8C4D6]'
                           }`}

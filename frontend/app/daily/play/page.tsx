@@ -60,13 +60,14 @@ export default function DailyPlayPage() {
   useEffect(() => {
     async function loadDaily() {
       const savedUser = localStorage.getItem('user');
-      const token = localStorage.getItem('token');
+const token = localStorage.getItem('token');
 
-      if (!savedUser || !token) {
-        window.location.replace('/login');
-        return;
-      }
-
+if (!savedUser || !token) {
+  localStorage.removeItem('user');
+  localStorage.removeItem('token');
+  window.location.replace('/login');
+  return;
+}
       const statusRes = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/daily-challenge/status/me`,
         {
@@ -126,6 +127,9 @@ export default function DailyPlayPage() {
         }),
       },
     );
+    if (!res.ok) {
+      throw new Error('Greška kod učitavanja stranice.');
+    }
 
     const data = await res.json();
 
@@ -147,61 +151,43 @@ export default function DailyPlayPage() {
   }
 
   function answer(option: string) {
-    if (locked) return;
+  if (locked) return;
 
-    const question = questions[current];
-    const isCorrect = question.correctAnswer === option;
+  const question = questions[current];
 
-    setLocked(true);
-    setSelectedAnswer(option);
-    setFeedback(isCorrect ? 'correct' : 'wrong');
+  setLocked(true);
+  setSelectedAnswer(option);
 
-    if (isCorrect) {
-      playSound('/sounds/correct.mp3');
-      setScore((prev) => prev + 1000);
+  const newAnswers = [
+    ...answers,
+    {
+      questionId: question.id,
+      answer: option,
+    },
+  ];
+
+  setAnswers(newAnswers);
+
+  setTimeout(async () => {
+    setSelectedAnswer(null);
+    setLocked(false);
+
+    if (current + 1 >= questions.length) {
+      await submitAnswers(newAnswers);
+      setFinished(true);
     } else {
-      playSound('/sounds/wrong.mp3');
+      setCurrent((prev) => prev + 1);
     }
-
-    const newAnswers = [
-      ...answers,
-      {
-        questionId: question.id,
-        answer: option,
-      },
-    ];
-
-    setAnswers(newAnswers);
-
-    setTimeout(() => {
-      setSelectedAnswer(null);
-      setFeedback(null);
-      setLocked(false);
-
-      if (current + 1 >= questions.length) {
-        submitAnswers(newAnswers);
-        setFinished(true);
-      } else {
-        setCurrent((prev) => prev + 1);
-      }
-    }, 900);
-  }
+  }, 500);
+}
 
   function getOptionClass(option: string) {
-    if (!selectedAnswer) {
-      return 'border-[#778DA9]/20 bg-[#1B263B]/88 text-[#E0E1DD] hover:-translate-y-0.5 hover:border-[#778DA9]/45 hover:bg-[#243551]';
-    }
-
-    if (option === selectedAnswer && feedback === 'correct') {
-      return 'border-[#388E3C]/50 bg-[#388E3C]/20 text-[#75d27a] ring-4 ring-[#388E3C]/15';
-    }
-
-    if (option === selectedAnswer && feedback === 'wrong') {
-      return 'border-[#C62828]/50 bg-[#C62828]/20 text-[#ffb4b4] ring-4 ring-[#C62828]/15';
-    }
-
-    return 'border-[#778DA9]/10 bg-[#0D1B2A]/45 text-[#778DA9] opacity-60';
+  if (option === selectedAnswer) {
+    return 'border-[#415A77]/60 bg-[#415A77]/25 text-[#E0E1DD] ring-4 ring-[#415A77]/15';
   }
+
+  return 'border-[#778DA9]/20 bg-[#1B263B]/88 text-[#E0E1DD] hover:-translate-y-0.5 hover:border-[#778DA9]/45 hover:bg-[#243551]';
+}
 
   if (!challenge || questions.length === 0) {
     return (
@@ -326,17 +312,7 @@ export default function DailyPlayPage() {
           </div>
         </section>
 
-        {feedback && (
-          <div
-            className={`mb-5 rounded-2xl border p-4 text-center text-lg font-black ${
-              feedback === 'correct'
-                ? 'border-[#388E3C]/35 bg-[#388E3C]/15 text-[#75d27a]'
-                : 'border-[#C62828]/35 bg-[#C62828]/15 text-[#ffb4b4]'
-            }`}
-          >
-            {feedback === 'correct' ? 'Točan odgovor!' : 'Netočan odgovor!'}
-          </div>
-        )}
+        
 
         <section className="grid gap-4 md:grid-cols-2">
           {question.options.map((option, index) => (
