@@ -243,7 +243,6 @@ if (!socket.connected) {
     });
 
     socket.on('room_created', (roomData: Room) => {
-      console.log('ROOM CREATED', roomData);
       setRoom(roomData);
       saveCurrentRoom(roomData);
       localStorage.setItem('returnToRoom', `/room?room=${roomData.code}`);
@@ -484,7 +483,6 @@ if (!socket.connected) {
       initializedRef.current = true;
 
       if (mode === 'create') {
-        console.log('EMIT CREATE ROOM');
         socket?.emit('create_room', {
           nickname: finalNickname,
           questionCount,
