@@ -14,7 +14,6 @@ type SeedQuestion = {
 };
 
 const categoriesToReset = [
-  "Matematika",
   "Sport",
   "Geografija",
   "Računarstvo",

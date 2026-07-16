@@ -4,7 +4,19 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { SubmitDailyDto } from './dto/submit-daily.dto';
 
-const DAILY_CATEGORIES = ['Geografija', 'Matematika', 'Računarstvo', 'Sport'];
+const DAILY_CATEGORIES = ["Sport",
+  "Geografija",
+  "Računarstvo",
+  "Povijest",
+  "Znanost",
+  "Književnost",
+  "Umjetnost",
+  "Glazba",
+  "Videoigre",
+  "Trendovi i aktualnosti",
+  "Poslovanje i brendovi",
+  "Životinje",
+  "Ljudsko tijelo i zdravlje"];
 
 @Controller('daily-challenge')
 export class DailyChallengeController {
@@ -38,34 +50,43 @@ export class DailyChallengeController {
   }
 
   @Get()
-  async getTodayChallenge() {
-    const today = new Date().toISOString().split('T')[0];
+async getTodayChallenge() {
+  const today = new Date().toISOString().split('T')[0];
 
-    let challenge = await this.prisma.dailyChallenge.findUnique({
-      where: {
+  let challenge = await this.prisma.dailyChallenge.findUnique({
+    where: {
+      date: today,
+    },
+  });
+
+  if (!challenge) {
+    // Rotacija kategorija po danima
+    const startDate = new Date('2025-01-01');
+    const currentDate = new Date(today);
+
+    const daysPassed = Math.floor(
+      (currentDate.getTime() - startDate.getTime()) /
+        (1000 * 60 * 60 * 24),
+    );
+
+    const category =
+      DAILY_CATEGORIES[daysPassed % DAILY_CATEGORIES.length];
+
+    challenge = await this.prisma.dailyChallenge.create({
+      data: {
+        title: `Daily ${category} Challenge`,
+        description: `Odgovori na 5 pitanja iz kategorije ${category}.`,
+        targetScore: 3000,
+        rewardXp: 100,
+        category,
+        questionCount: 5,
         date: today,
       },
     });
-
-    if (!challenge) {
-      const randomCategory =
-        DAILY_CATEGORIES[Math.floor(Math.random() * DAILY_CATEGORIES.length)];
-
-      challenge = await this.prisma.dailyChallenge.create({
-        data: {
-          title: `Daily ${randomCategory} Challenge`,
-          description: `Odgovori na 5 pitanja iz kategorije ${randomCategory}.`,
-          targetScore: 3000,
-          rewardXp: 100,
-          category: randomCategory,
-          questionCount: 5,
-          date: today,
-        },
-      });
-    }
-
-    return challenge;
   }
+
+  return challenge;
+}
 
   @UseGuards(JwtAuthGuard)
   @Get('status/me')

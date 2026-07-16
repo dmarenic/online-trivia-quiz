@@ -21,14 +21,6 @@ type Player = {
   connected: boolean;
 };
 
-type QuizQuestion = {
-  id: string;
-  category: string;
-  question: string;
-  options: string[];
-  correctAnswer: string;
-};
-
 type Room = {
   code: string;
   hostId: string;
@@ -43,6 +35,14 @@ type Room = {
   questionCount: number;
   timePerQuestion: number;
   selectedDifficulty: string;
+};
+
+type QuizQuestion = {
+  id: string;
+  category: string;
+  question: string;
+  options: string[];
+  correctAnswer: string;
 };
 
 type SocketUser = {
