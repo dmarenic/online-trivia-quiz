@@ -8,6 +8,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
+import { randomInt } from 'crypto';
 import { PrismaService } from './prisma/prisma.service';
 
 type Player = {
@@ -143,6 +144,25 @@ export class GameGateway implements OnGatewayDisconnect {
 
   private normalizeRoomCode(roomCode: string) {
     return roomCode.trim().toUpperCase();
+  }
+
+  // Alfabet bez 0/O i 1/I da se kod lakše prepisuje bez zabune.
+  private static readonly ROOM_CODE_ALPHABET =
+    'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  private static readonly ROOM_CODE_LENGTH = 6;
+
+  private generateRoomCode(): string {
+    const alphabet = GameGateway.ROOM_CODE_ALPHABET;
+    let code: string;
+
+    do {
+      code = Array.from(
+        { length: GameGateway.ROOM_CODE_LENGTH },
+        () => alphabet[randomInt(alphabet.length)],
+      ).join('');
+    } while (this.rooms.has(code));
+
+    return code;
   }
 
   private sanitizeText(value: string) {
@@ -625,7 +645,7 @@ export class GameGateway implements OnGatewayDisconnect {
     const authUser = this.getUserFromSocket(client);
     const userId = authUser?.id;
 
-    const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const roomCode = this.generateRoomCode();
 
     const questionCount = this.getSafeQuestionCount(data.questionCount, 10);
     const timePerQuestion = this.getSafeTimePerQuestion(
