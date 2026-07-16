@@ -1,3 +1,6 @@
+// Mora biti prvi import: puni process.env iz .env prije nego što se
+// evaluiraju dekoratori (npr. CORS origin u @WebSocketGateway).
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';

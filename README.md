@@ -358,6 +358,10 @@ npm run dev
 
 # Environment konfiguracija
 
+Backend pri pokretanju automatski učitava datoteku `backend/.env`
+(predložak: `backend/.env.example`). Bez postavljenih obveznih
+varijabli server se namjerno odbija pokrenuti.
+
 Backend koristi sljedeće environment varijable:
 
 ```env
