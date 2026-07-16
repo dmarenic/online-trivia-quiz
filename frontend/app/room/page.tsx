@@ -320,6 +320,44 @@ if (!socket.connected) {
     );
 
     socket.on(
+      'reconnected_to_game',
+      (data: {
+        room: Room;
+        question: Question | null;
+        questionNumber: number;
+        totalQuestions: number;
+        answeredCount: number;
+        totalPlayers: number;
+        timeLeft: number;
+        acceptingAnswers: boolean;
+        hasAnswered: boolean;
+      }) => {
+        setRoom(data.room);
+        saveCurrentRoom(data.room);
+        localStorage.setItem('returnToRoom', `/room?room=${data.room.code}`);
+        setSelectedCategory(data.room.selectedCategory ?? 'All');
+        setSelectedDifficulty(data.room.selectedDifficulty ?? 'All');
+        setQuestionCount(data.room.questionCount ?? 10);
+        setTimePerQuestion(data.room.timePerQuestion ?? 15);
+
+        setQuestion(data.question);
+        setQuestionNumber(data.questionNumber);
+        setTotalQuestions(data.totalQuestions);
+        setAnsweredCount(data.answeredCount);
+        setTotalPlayers(data.totalPlayers);
+        setTimeLeft(data.timeLeft);
+        setHasAnswered(data.hasAnswered);
+        setQuestionEnded(!data.acceptingAnswers);
+        setLeaderboard(
+          [...data.room.players].sort((a, b) => b.score - a.score),
+        );
+        setGameFinished(false);
+        setAnswerResult(null);
+        setErrorMessage('');
+      },
+    );
+
+    socket.on(
       'question_started',
       (data: {
         question: Question;
