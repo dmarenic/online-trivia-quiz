@@ -9,12 +9,4 @@ export class AppController {
       app: 'trivia-api',
     };
   }
-
-  @Get('health')
-  health() {
-    return {
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-    };
-  }
 }
