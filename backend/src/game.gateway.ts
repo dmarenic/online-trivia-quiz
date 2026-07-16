@@ -216,6 +216,32 @@ export class GameGateway implements OnGatewayDisconnect {
     return room.hostId === client.id;
   }
 
+  // Grace period nakon disconnecta hosta: refresh taba traje par sekundi,
+  // pa host ulogu predajemo drugom igraču tek ako se host ne vrati.
+  private static readonly HOST_RECONNECT_GRACE_MS = 10000;
+
+  private scheduleHostReassignment(roomCode: string) {
+    setTimeout(() => {
+      const room = this.rooms.get(roomCode);
+
+      if (!room) return;
+
+      const currentHost = room.players.find((p) => p.id === room.hostId);
+
+      if (currentHost && currentHost.connected !== false) return;
+
+      const newHost = room.players.find((p) => p.connected !== false);
+
+      if (!newHost) return;
+
+      room.hostId = newHost.id;
+      room.hostUserId = newHost.userId;
+      newHost.isReady = true;
+
+      this.server.to(roomCode).emit('room_updated', toPublicRoom(room));
+    }, GameGateway.HOST_RECONNECT_GRACE_MS);
+  }
+
   private calculatePoints(isCorrect: boolean, responseTimeMs: number) {
     if (!isCorrect) return 0;
 
@@ -680,11 +706,15 @@ export class GameGateway implements OnGatewayDisconnect {
     });
 
     if (reconnectingPlayer) {
+      // hostId nosi stari socket id — provjeri prije nego što ga pregazimo,
+      // inače se guest-host (bez userId) nakon refresha ne prepozna kao host
+      const wasHost = room.hostId === reconnectingPlayer.id;
+
       reconnectingPlayer.id = client.id;
       reconnectingPlayer.connected = true;
       client.join(room.code);
 
-      if (room.hostUserId && userId && room.hostUserId === userId) {
+      if (wasHost || (room.hostUserId && userId && room.hostUserId === userId)) {
         room.hostId = client.id;
         reconnectingPlayer.isReady = true;
       }
@@ -1185,6 +1215,10 @@ setDifficulty(
       if (!player) continue;
 
       player.connected = false;
+
+      if (room.hostId === client.id) {
+        this.scheduleHostReassignment(roomCode);
+      }
 
       this.server.to(roomCode).emit('room_updated', toPublicRoom(room));
 
