@@ -327,33 +327,33 @@ export class GameGateway implements OnGatewayDisconnect {
   }
 
   private async getQuestionsForSettings(category: string, difficulty: string) {
-  const where: any = {};
+    const where: any = {};
 
-  if (category !== 'All') {
-    where.category = category;
+    if (category !== 'All') {
+      where.category = category;
+    }
+
+    if (difficulty !== 'All') {
+      where.difficulty = difficulty;
+    }
+
+    const dbQuestions = await this.prisma.question.findMany({
+      where,
+    });
+
+    return dbQuestions.map((question) => ({
+      id: question.id,
+      category: question.category,
+      question: question.question,
+      options: shuffleArray([
+        question.optionA,
+        question.optionB,
+        question.optionC,
+        question.optionD,
+      ]),
+      correctAnswer: question.correctAnswer,
+    }));
   }
-
-  if (difficulty !== 'All') {
-    where.difficulty = difficulty;
-  }
-
-  const dbQuestions = await this.prisma.question.findMany({
-    where,
-  });
-
-  return dbQuestions.map((question) => ({
-    id: question.id,
-    category: question.category,
-    question: question.question,
-    options: shuffleArray([
-      question.optionA,
-      question.optionB,
-      question.optionC,
-      question.optionD,
-    ]),
-    correctAnswer: question.correctAnswer,
-  }));
-}
   private async unlockAchievement(
     userId: string,
     title: string,
@@ -533,12 +533,12 @@ export class GameGateway implements OnGatewayDisconnect {
   ) {
     const authUser = this.getUserFromSocket(client);
     if (this.isRateLimited(`invite_${client.id}`, 5, 60000)) {
-  client.emit(
-    'error_message',
-    'Previše pozivnica. Pričekaj minutu prije novog slanja.',
-  );
-  return;
-}
+      client.emit(
+        'error_message',
+        'Previše pozivnica. Pričekaj minutu prije novog slanja.',
+      );
+      return;
+    }
 
     if (!authUser) {
       client.emit('error_message', 'Nisi prijavljen.');
@@ -734,7 +734,10 @@ export class GameGateway implements OnGatewayDisconnect {
       reconnectingPlayer.connected = true;
       client.join(room.code);
 
-      if (wasHost || (room.hostUserId && userId && room.hostUserId === userId)) {
+      if (
+        wasHost ||
+        (room.hostUserId && userId && room.hostUserId === userId)
+      ) {
         room.hostId = client.id;
         reconnectingPlayer.isReady = true;
       }
@@ -969,9 +972,9 @@ export class GameGateway implements OnGatewayDisconnect {
     room.timePerQuestion = timePerQuestion;
 
     const allQuestions = await this.getQuestionsForSettings(
-  room.selectedCategory,
-  room.selectedDifficulty,
-);
+      room.selectedCategory,
+      room.selectedDifficulty,
+    );
 
     const selectedQuestions = shuffleArray(allQuestions).slice(
       0,
@@ -1015,35 +1018,81 @@ export class GameGateway implements OnGatewayDisconnect {
   }
 
   @SubscribeMessage('set_difficulty')
-setDifficulty(
-  @MessageBody() data: { roomCode: string; difficulty: string },
-  @ConnectedSocket() client: Socket,
-) {
-  if (!data || !this.isValidRoomCode(data.roomCode)) {
-    client.emit('error_message', 'Neispravni podaci za težinu.');
-    return;
+  setDifficulty(
+    @MessageBody() data: { roomCode: string; difficulty: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    if (!data || !this.isValidRoomCode(data.roomCode)) {
+      client.emit('error_message', 'Neispravni podaci za težinu.');
+      return;
+    }
+
+    const roomCode = this.normalizeRoomCode(data.roomCode);
+    const difficulty = this.sanitizeText(data.difficulty);
+    const room = this.rooms.get(roomCode);
+
+    if (!room) return;
+
+    if (!this.isRoomHost(room, client)) {
+      client.emit('error_message', 'Samo host može mijenjati težinu.');
+      return;
+    }
+
+    if (room.started) {
+      client.emit('error_message', 'Težina se ne može mijenjati tijekom igre.');
+      return;
+    }
+
+    room.selectedDifficulty = difficulty;
+
+    this.server.to(room.code).emit('room_updated', toPublicRoom(room));
   }
 
-  const roomCode = this.normalizeRoomCode(data.roomCode);
-  const difficulty = this.sanitizeText(data.difficulty);
-  const room = this.rooms.get(roomCode);
+  @SubscribeMessage('update_settings')
+  updateSettings(
+    @MessageBody()
+    data: {
+      roomCode: string;
+      questionCount?: number;
+      timePerQuestion?: number;
+    },
+    @ConnectedSocket() client: Socket,
+  ) {
+    if (!data || !this.isValidRoomCode(data.roomCode)) {
+      client.emit('error_message', 'Neispravni podaci za postavke.');
+      return;
+    }
 
-  if (!room) return;
+    const roomCode = this.normalizeRoomCode(data.roomCode);
+    const room = this.rooms.get(roomCode);
 
-  if (!this.isRoomHost(room, client)) {
-    client.emit('error_message', 'Samo host može mijenjati težinu.');
-    return;
+    if (!room) return;
+
+    if (!this.isRoomHost(room, client)) {
+      client.emit('error_message', 'Samo host može mijenjati postavke.');
+      return;
+    }
+
+    if (room.started) {
+      client.emit(
+        'error_message',
+        'Postavke se ne mogu mijenjati tijekom igre.',
+      );
+      return;
+    }
+
+    room.questionCount = this.getSafeQuestionCount(
+      data.questionCount,
+      room.questionCount || 10,
+    );
+
+    room.timePerQuestion = this.getSafeTimePerQuestion(
+      data.timePerQuestion,
+      room.timePerQuestion || 15,
+    );
+
+    this.server.to(room.code).emit('room_updated', toPublicRoom(room));
   }
-
-  if (room.started) {
-    client.emit('error_message', 'Težina se ne može mijenjati tijekom igre.');
-    return;
-  }
-
-  room.selectedDifficulty = difficulty;
-
-  this.server.to(room.code).emit('room_updated', toPublicRoom(room));
-}
 
   @SubscribeMessage('submit_answer')
   submitAnswer(

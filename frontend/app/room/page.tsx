@@ -550,6 +550,16 @@ if (!socket.connected) {
     });
   }
 
+  function syncSettings() {
+    if (!room || room.started) return;
+
+    socket?.emit('update_settings', {
+      roomCode: room.code,
+      questionCount,
+      timePerQuestion,
+    });
+  }
+
   function startGame() {
     if (!room) return;
 
@@ -1142,6 +1152,7 @@ if (!socket.connected) {
                     max={30}
                     value={questionCount}
                     onChange={(e) => setQuestionCount(Number(e.target.value))}
+                    onBlur={syncSettings}
                     disabled={!isHost || room.started}
                     className={inputClass}
                   />
@@ -1160,6 +1171,7 @@ if (!socket.connected) {
                     onChange={(e) =>
                       setTimePerQuestion(Number(e.target.value))
                     }
+                    onBlur={syncSettings}
                     disabled={!isHost || room.started}
                     className={inputClass}
                   />
