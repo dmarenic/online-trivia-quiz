@@ -64,6 +64,24 @@ function toPublicQuestion(question: QuizQuestion) {
   };
 }
 
+// Javna verzija sobe za slanje klijentima — NIKAD ne slati interni Room
+// objekt jer questions[] sadrži correctAnswer.
+function toPublicRoom(room: Room) {
+  return {
+    code: room.code,
+    hostId: room.hostId,
+    hostUserId: room.hostUserId,
+    players: room.players,
+    currentQuestionIndex: room.currentQuestionIndex,
+    started: room.started,
+    acceptingAnswers: room.acceptingAnswers,
+    selectedCategory: room.selectedCategory,
+    selectedDifficulty: room.selectedDifficulty,
+    questionCount: room.questionCount,
+    timePerQuestion: room.timePerQuestion,
+  };
+}
+
 @WebSocketGateway({
   cors: {
     origin: process.env.FRONTEND_URL,
@@ -619,7 +637,7 @@ export class GameGateway implements OnGatewayDisconnect {
     this.rooms.set(roomCode, room);
     client.join(roomCode);
 
-    client.emit('room_created', room);
+    client.emit('room_created', toPublicRoom(room));
   }
 
   @SubscribeMessage('join_room')
@@ -679,7 +697,7 @@ export class GameGateway implements OnGatewayDisconnect {
         const timeLeft = Math.max(0, room.timePerQuestion - elapsedSeconds);
 
         client.emit('reconnected_to_game', {
-          room,
+          room: toPublicRoom(room),
           question: room.questions[room.currentQuestionIndex]
             ? toPublicQuestion(room.questions[room.currentQuestionIndex])
             : null,
@@ -694,10 +712,10 @@ export class GameGateway implements OnGatewayDisconnect {
           ),
         });
       } else {
-        client.emit('room_updated', room);
+        client.emit('room_updated', toPublicRoom(room));
       }
 
-      this.server.to(room.code).emit('room_updated', room);
+      this.server.to(room.code).emit('room_updated', toPublicRoom(room));
       return;
     }
 
@@ -711,7 +729,7 @@ export class GameGateway implements OnGatewayDisconnect {
     );
 
     if (existingPlayer) {
-      client.emit('room_updated', room);
+      client.emit('room_updated', toPublicRoom(room));
       return;
     }
 
@@ -729,8 +747,8 @@ export class GameGateway implements OnGatewayDisconnect {
     room.players.push(player);
     client.join(room.code);
 
-    this.server.to(room.code).emit('player_joined', room);
-    this.server.to(room.code).emit('room_updated', room);
+    this.server.to(room.code).emit('player_joined', toPublicRoom(room));
+    this.server.to(room.code).emit('room_updated', toPublicRoom(room));
   }
   @SubscribeMessage('kick_player')
   kickPlayer(
@@ -777,7 +795,7 @@ export class GameGateway implements OnGatewayDisconnect {
 
     this.server.to(data.playerId).emit('kicked_from_room');
 
-    this.server.to(room.code).emit('room_updated', room);
+    this.server.to(room.code).emit('room_updated', toPublicRoom(room));
   }
   @SubscribeMessage('set_category')
   setCategory(
@@ -818,7 +836,7 @@ export class GameGateway implements OnGatewayDisconnect {
       category,
     });
 
-    this.server.to(room.code).emit('room_updated', room);
+    this.server.to(room.code).emit('room_updated', toPublicRoom(room));
   }
 
   @SubscribeMessage('toggle_ready')
@@ -846,7 +864,7 @@ export class GameGateway implements OnGatewayDisconnect {
       player.isReady = !player.isReady;
     }
 
-    this.server.to(room.code).emit('room_updated', room);
+    this.server.to(room.code).emit('room_updated', toPublicRoom(room));
   }
 
   @SubscribeMessage('start_game')
@@ -974,7 +992,7 @@ setDifficulty(
 
   room.selectedDifficulty = difficulty;
 
-  this.server.to(room.code).emit('room_updated', room);
+  this.server.to(room.code).emit('room_updated', toPublicRoom(room));
 }
 
   @SubscribeMessage('submit_answer')
@@ -1089,10 +1107,10 @@ setDifficulty(
 
       this.server.to(room.code).emit('game_finished', {
         players: room.players,
-        room,
+        room: toPublicRoom(room),
       });
 
-      this.server.to(room.code).emit('room_updated', room);
+      this.server.to(room.code).emit('room_updated', toPublicRoom(room));
 
       this.saveGameResults(room).catch((error) => {
         console.error('Greška kod spremanja rezultata:', error);
@@ -1168,7 +1186,7 @@ setDifficulty(
 
       player.connected = false;
 
-      this.server.to(roomCode).emit('room_updated', room);
+      this.server.to(roomCode).emit('room_updated', toPublicRoom(room));
 
       setTimeout(() => {
         const latestRoom = this.rooms.get(roomCode);
