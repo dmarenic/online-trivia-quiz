@@ -56,6 +56,8 @@ export default function DailyPlayPage() {
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
   const [locked, setLocked] = useState(false);
+  const [submitError, setSubmitError] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     async function loadDaily() {
@@ -150,6 +152,20 @@ if (!savedUser || !token) {
     }
   }
 
+  async function finishChallenge(finalAnswers: DailyAnswer[]) {
+    setSubmitting(true);
+    setSubmitError(false);
+
+    try {
+      await submitAnswers(finalAnswers);
+      setFinished(true);
+    } catch {
+      setSubmitError(true);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   function answer(option: string) {
   if (locked) return;
 
@@ -173,8 +189,7 @@ if (!savedUser || !token) {
     setLocked(false);
 
     if (current + 1 >= questions.length) {
-      await submitAnswers(newAnswers);
-      setFinished(true);
+      await finishChallenge(newAnswers);
     } else {
       setCurrent((prev) => prev + 1);
     }
@@ -208,6 +223,39 @@ if (!savedUser || !token) {
   const activeChallenge = challenge;
   const question = questions[current];
   const progressPercent = ((current + 1) / questions.length) * 100;
+
+  if (submitError) {
+    return (
+      <main className={`${shellClass} flex items-center justify-center p-4 sm:p-6`}>
+        <section className={`${cardClass} w-full max-w-2xl p-5 text-center sm:p-8`}>
+          <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
+            Spremanje rezultata nije uspjelo
+          </h1>
+
+          <p className="mx-auto mt-4 max-w-md text-[#B8C4D6]">
+            Tvoji odgovori nisu izgubljeni. Provjeri internetsku vezu i pokušaj
+            ponovno.
+          </p>
+
+          <button
+            type="button"
+            disabled={submitting}
+            onClick={() => finishChallenge(answers)}
+            className={`${successButtonClass} mt-7 w-full disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto`}
+          >
+            {submitting ? 'Spremam...' : 'Pokušaj ponovno'}
+          </button>
+
+          <Link
+            href="/daily"
+            className={`${primaryButtonClass} mt-4 inline-flex w-full justify-center sm:ml-3 sm:mt-7 sm:w-auto`}
+          >
+            Nazad na Daily Challenge
+          </Link>
+        </section>
+      </main>
+    );
+  }
 
   if (finished) {
     return (
