@@ -8,7 +8,7 @@ Online Trivia Quiz je moderna full-stack web aplikacija razvijena kao završni r
 
 Cilj projekta bio je razviti online multiplayer kviz igru u kojoj se igrači natječu u stvarnom vremenu odgovarajući na pitanja iz različitih kategorija. Aplikacija omogućuje kreiranje privatnih soba, pozivanje prijatelja, prikaz rezultata uživo te praćenje uspješnosti svih sudionika.
 
-Uz osnovne multiplayer funkcionalnosti implementirani su i dodatni moduli poput dnevnih izazova (Daily Challenge), sustava postignuća (Achievements), sustava prijatelja (Friends System), administratorskog sučelja za upravljanje pitanjima te integracija umjetne inteligencije za automatsko generiranje novih pitanja.
+Uz osnovne multiplayer funkcionalnosti implementirani su i dodatni moduli poput dnevnih izazova (Daily Challenge), sustava prijatelja (Friends System), administratorskog sučelja za upravljanje pitanjima te integracija umjetne inteligencije za automatsko generiranje novih pitanja.
 
 Produkcijska verzija aplikacije dostupna je na:
 
@@ -33,7 +33,6 @@ Projekt podržava:
 * Multiplayer kviz sobe
 * Sustav prijatelja
 * Room pozivnice
-* Achievement sustav
 * Globalne i dnevne leaderboarde
 * Administratorsko upravljanje pitanjima
 * AI generiranje novih pitanja
@@ -92,12 +91,6 @@ Deployment:
 * Odbijanje zahtjeva
 * Pregled liste prijatelja
 * Room pozivnice
-
-## Achievement sustav
-
-* Otključavanje postignuća
-* Praćenje napretka
-* Pregled osvojenih achievementa
 
 ## Administratorski sustav
 
@@ -262,7 +255,6 @@ ONLINE-TRIVIA-QUIZ
 │
 ├── frontend
 │   ├── app
-│   │   ├── achievements
 │   │   ├── admin
 │   │   ├── daily
 │   │   ├── friends
@@ -399,7 +391,6 @@ Automatski se izvršava prilikom promjena u repozitoriju.
 # Moguća buduća proširenja
 
 * Napredniji matchmaking sustav
-* Dodatni tipovi achievementa
 * Analitika i statistika igrača
 * Sezonski leaderboard sustav
 * Dodatne kategorije i tipovi kvizova

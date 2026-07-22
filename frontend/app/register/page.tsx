@@ -85,16 +85,11 @@ function showToast(message: string, type: 'success' | 'error' = 'success') {
             </h1>
 
             <p className="mt-5 max-w-lg text-lg leading-8 text-[#B8C4D6]">
-              Registracijom dobivaš profil, XP progres, achievemente,
-              prijatelje, multiplayer sobe i praćenje rezultata kroz igre.
+              Registracijom dobivaš profil, prijatelje, multiplayer sobe i
+              praćenje rezultata kroz igre.
             </p>
 
-            <div className="mt-8 grid max-w-xl grid-cols-3 gap-3">
-              <div className="rounded-2xl border border-[#778DA9]/15 bg-[#1B263B]/55 p-4">
-                <p className="text-2xl font-black">XP</p>
-                <p className="mt-1 text-sm text-[#778DA9]">leveling</p>
-              </div>
-
+            <div className="mt-8 grid max-w-xl grid-cols-2 gap-3">
               <div className="rounded-2xl border border-[#778DA9]/15 bg-[#1B263B]/55 p-4">
                 <p className="text-2xl font-black">Friends</p>
                 <p className="mt-1 text-sm text-[#778DA9]">invites</p>
@@ -102,7 +97,7 @@ function showToast(message: string, type: 'success' | 'error' = 'success') {
 
               <div className="rounded-2xl border border-[#778DA9]/15 bg-[#1B263B]/55 p-4">
                 <p className="text-2xl font-black">Daily</p>
-                <p className="mt-1 text-sm text-[#778DA9]">streak</p>
+                <p className="mt-1 text-sm text-[#778DA9]">challenge</p>
               </div>
             </div>
           </section>

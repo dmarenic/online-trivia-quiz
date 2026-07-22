@@ -59,14 +59,8 @@ export class UsersController {
       take: 10,
     });
 
-    const achievements = await this.prisma.achievement.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: 'desc' },
-    });
-
     return {
       results,
-      achievements,
     };
   }
 
@@ -77,7 +71,6 @@ export class UsersController {
       where: { id: user.id },
       include: {
         results: true,
-        achievements: true,
       },
     });
 
@@ -116,9 +109,6 @@ export class UsersController {
       bestScore,
       averageScore: Number(averageScore.toFixed(1)),
       accuracy: Number(accuracy.toFixed(1)),
-      totalXp: dbUser.xp,
-      level: dbUser.level,
-      achievementCount: dbUser.achievements.length,
     };
   }
 
@@ -140,10 +130,6 @@ export class UsersController {
         email: true,
         role: true,
         avatar: true,
-        xp: true,
-        level: true,
-        dailyStreak: true,
-        lastDailyDate: true,
       },
     });
   }
@@ -307,84 +293,6 @@ export class UsersController {
       success: true,
       message: 'Zahtjev za prijateljstvo poslan.',
     };
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @Get('me/achievements')
-  async getAchievements(@CurrentUser() user: any) {
-    const unlocked = await this.prisma.achievement.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    const allAchievements = [
-      {
-        title: 'First Game',
-        description: 'Odigraj svoju prvu igru.',
-      },
-      {
-        title: 'Quiz Rookie',
-        description: 'Odigraj 5 igara.',
-      },
-      {
-        title: '10 Games Played',
-        description: 'Odigraj 10 igara.',
-      },
-      {
-        title: 'Quiz Veteran',
-        description: 'Odigraj 25 igara.',
-      },
-      {
-        title: 'High Scorer',
-        description: 'Ostvari 15 ili više bodova u jednoj igri.',
-      },
-      {
-        title: 'Quiz Master',
-        description: 'Ostvari 20 ili više bodova u jednoj igri.',
-      },
-      {
-        title: 'Perfect Game',
-        description: 'Odgovori točno na sva pitanja u jednoj igri.',
-      },
-      {
-        title: 'Sharp Shooter',
-        description: 'Ostvari barem 80% točnosti u jednoj igri.',
-      },
-      {
-        title: 'Level 5',
-        description: 'Dosegni level 5.',
-      },
-      {
-        title: 'Level 10',
-        description: 'Dosegni level 10.',
-      },
-      {
-        title: 'First Daily',
-        description: 'Završi svoj prvi Daily Challenge.',
-      },
-      {
-        title: 'Daily Master',
-        description: 'Osvoji maksimalan rezultat na Daily Challengeu.',
-      },
-      {
-        title: '3 Day Streak',
-        description: 'Završi Daily Challenge 3 dana zaredom.',
-      },
-      {
-        title: '7 Day Streak',
-        description: 'Završi Daily Challenge 7 dana zaredom.',
-      },
-    ];
-
-    return allAchievements.map((achievement) => {
-      const found = unlocked.find((u) => u.title === achievement.title);
-
-      return {
-        ...achievement,
-        unlocked: !!found,
-        unlockedAt: found?.createdAt || null,
-      };
-    });
   }
 
   @UseGuards(JwtAuthGuard)

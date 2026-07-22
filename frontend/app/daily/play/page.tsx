@@ -20,7 +20,6 @@ type DailyChallenge = {
   id: string;
   title: string;
   description: string;
-  rewardXp: number;
   category: string;
 };
 
@@ -49,9 +48,6 @@ export default function DailyPlayPage() {
   const [score, setScore] = useState(0);
   const [finished, setFinished] = useState(false);
   const [resultMessage, setResultMessage] = useState('');
-  const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>(
-    [],
-  );
   const [answers, setAnswers] = useState<DailyAnswer[]>([]);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
@@ -137,19 +133,6 @@ if (!savedUser || !token) {
 
     setScore(data.score ?? 0);
     setResultMessage(data.message || 'Rezultat je spremljen.');
-    setUnlockedAchievements(data.unlockedAchievements || []);
-
-    if (data.success) {
-      const updatedUser = {
-        ...user,
-        xp: data.totalXp ?? user.xp,
-        level: data.level ?? user.level,
-        dailyStreak: data.dailyStreak ?? user.dailyStreak,
-        lastDailyDate: new Date().toISOString().split('T')[0],
-      };
-
-      localStorage.setItem('user', JSON.stringify(updatedUser));
-    }
   }
 
   async function finishChallenge(finalAnswers: DailyAnswer[]) {
@@ -281,25 +264,6 @@ if (!savedUser || !token) {
             {resultMessage || 'Rezultat je spremljen.'}
           </p>
 
-          {unlockedAchievements.length > 0 && (
-            <div className="mt-6 rounded-[20px] border border-[#388E3C]/35 bg-[#388E3C]/15 p-5 text-left">
-              <h2 className="mb-4 text-xl font-black text-[#75d27a]">
-                Achievement unlocked
-              </h2>
-
-              <div className="space-y-3">
-                {unlockedAchievements.map((achievement) => (
-                  <p
-                    key={achievement}
-                    className="rounded-2xl border border-[#388E3C]/20 bg-[#0D1B2A]/35 p-3 font-bold text-[#E0E1DD]"
-                  >
-                    {achievement}
-                  </p>
-                ))}
-              </div>
-            </div>
-          )}
-
           <Link
             href="/daily"
             className={`${primaryButtonClass} mt-7 inline-flex w-full justify-center sm:w-auto`}
@@ -382,18 +346,10 @@ if (!savedUser || !token) {
           ))}
         </section>
 
-        <section className="mt-6 grid gap-4 sm:grid-cols-3">
+        <section className="mt-6 grid gap-4 sm:grid-cols-2">
           <div className={`${cardClass} p-5`}>
             <p className="text-sm font-bold text-[#778DA9]">Score</p>
             <p className="mt-2 text-3xl font-black">{score}</p>
-          </div>
-
-          <div className={`${cardClass} p-5`}>
-            <p className="text-sm font-bold text-[#778DA9]">Reward</p>
-            <p className="mt-2 text-3xl font-black">
-              {activeChallenge.rewardXp}
-            </p>
-            <p className="text-sm text-[#778DA9]">XP</p>
           </div>
 
           <div className={`${cardClass} p-5`}>

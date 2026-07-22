@@ -50,18 +50,11 @@ model User {
   createdAt DateTime @default(now())
 
   results      GameResult[]
-  achievements Achievement[]
 
   sentFriends     Friend[] @relation("FriendSender")
   receivedFriends Friend[] @relation("FriendReceiver")
 
   dailyChallengeCompletions DailyChallengeCompletion[]
-
-  dailyStreak Int @default(0)
-  lastDailyDate String?
-
-  xp Int @default(0)
-  level Int @default(1)
 
   dailyChallengeAttempts DailyChallengeAttempt[]
   
@@ -69,18 +62,6 @@ model User {
   receivedRoomInvites RoomInvite[] @relation("ReceivedRoomInvites")
 
   role String @default("USER")
-}
-
-model Achievement {
-  id          String   @id @default(cuid())
-  title       String
-  description String
-  userId      String
-  createdAt   DateTime @default(now())
-  @@index([userId])
-  @@unique([userId, title])
-
-  user User @relation(fields: [userId], references: [id])
 }
 
 model Friend {
@@ -101,7 +82,6 @@ model DailyChallenge {
   title       String
   description String
   targetScore Int
-  rewardXp    Int
   date        String   @unique
   createdAt   DateTime @default(now())
   category      String @default("Sport")

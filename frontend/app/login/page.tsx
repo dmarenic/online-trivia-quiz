@@ -91,12 +91,7 @@ export default function LoginPage() {
               daily challenge rezultatima i multiplayer sobama.
             </p>
 
-            <div className="mt-8 grid max-w-xl grid-cols-3 gap-3">
-              <div className="rounded-2xl border border-[#778DA9]/15 bg-[#1B263B]/55 p-4">
-                <p className="text-2xl font-black">XP</p>
-                <p className="mt-1 text-sm text-[#778DA9]">progress</p>
-              </div>
-
+            <div className="mt-8 grid max-w-xl grid-cols-2 gap-3">
               <div className="rounded-2xl border border-[#778DA9]/15 bg-[#1B263B]/55 p-4">
                 <p className="text-2xl font-black">Rank</p>
                 <p className="mt-1 text-sm text-[#778DA9]">leaderboard</p>
