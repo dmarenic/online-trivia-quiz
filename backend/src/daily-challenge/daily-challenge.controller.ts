@@ -77,7 +77,6 @@ async getTodayChallenge() {
         title: `Daily ${category} Challenge`,
         description: `Odgovori na 5 pitanja iz kategorije ${category}.`,
         targetScore: 3000,
-        rewardXp: 100,
         category,
         questionCount: 5,
         date: today,
@@ -236,11 +235,6 @@ async getTodayChallenge() {
           score: alreadyAttempted.score,
           correctAnswers: alreadyAttempted.correctAnswers,
           totalQuestions: alreadyAttempted.totalQuestions,
-          rewardXp: 0,
-          totalXp: null,
-          level: null,
-          dailyStreak: null,
-          unlockedAchievements: [],
           message: 'Daily challenge si već igrao danas.',
         };
       }
@@ -275,128 +269,8 @@ async getTodayChallenge() {
           score,
           correctAnswers,
           totalQuestions,
-          rewardXp: 0,
-          totalXp: null,
-          level: null,
-          dailyStreak: null,
-          unlockedAchievements: [],
           message: 'Nisi ispunio daily challenge.',
         };
-      }
-
-      const currentUser = await tx.user.findUnique({
-        where: {
-          id: userId,
-        },
-      });
-
-      if (!currentUser) {
-        return {
-          success: false,
-          completed: false,
-          rewardClaimed: false,
-          score,
-          correctAnswers,
-          totalQuestions,
-          rewardXp: 0,
-          totalXp: null,
-          level: null,
-          dailyStreak: null,
-          unlockedAchievements: [],
-          message: 'Korisnik ne postoji.',
-        };
-      }
-
-      const newXp = currentUser.xp + challenge.rewardXp;
-      const newLevel = Math.floor(newXp / 1000) + 1;
-
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayString = yesterday.toISOString().split('T')[0];
-
-      let newStreak = 1;
-
-      if (currentUser.lastDailyDate === yesterdayString) {
-        newStreak = currentUser.dailyStreak + 1;
-      }
-
-      if (currentUser.lastDailyDate === today) {
-        newStreak = currentUser.dailyStreak;
-      }
-
-      const updatedUser = await tx.user.update({
-        where: {
-          id: userId,
-        },
-        data: {
-          xp: newXp,
-          level: newLevel,
-          dailyStreak: newStreak,
-          lastDailyDate: today,
-        },
-      });
-
-      const unlockedAchievements: string[] = [];
-
-      const firstDailyAchievement = await tx.achievement.findFirst({
-        where: {
-          userId,
-          title: 'First Daily',
-        },
-      });
-
-      if (!firstDailyAchievement) {
-        await tx.achievement.create({
-          data: {
-            userId,
-            title: 'First Daily',
-            description: 'Završi svoj prvi Daily Challenge.',
-          },
-        });
-
-        unlockedAchievements.push('First Daily');
-      }
-
-      if (score >= 5000) {
-        const dailyMasterAchievement = await tx.achievement.findFirst({
-          where: {
-            userId,
-            title: 'Daily Master',
-          },
-        });
-
-        if (!dailyMasterAchievement) {
-          await tx.achievement.create({
-            data: {
-              userId,
-              title: 'Daily Master',
-              description: 'Osvoji maksimalan rezultat na Daily Challengeu.',
-            },
-          });
-
-          unlockedAchievements.push('Daily Master');
-        }
-      }
-
-      if (newStreak >= 3) {
-        const streakAchievement = await tx.achievement.findFirst({
-          where: {
-            userId,
-            title: '3 Day Streak',
-          },
-        });
-
-        if (!streakAchievement) {
-          await tx.achievement.create({
-            data: {
-              userId,
-              title: '3 Day Streak',
-              description: 'Završi Daily Challenge 3 dana zaredom.',
-            },
-          });
-
-          unlockedAchievements.push('3 Day Streak');
-        }
       }
 
       return {
@@ -406,12 +280,7 @@ async getTodayChallenge() {
         score,
         correctAnswers,
         totalQuestions,
-        rewardXp: challenge.rewardXp,
-        totalXp: updatedUser.xp,
-        level: updatedUser.level,
-        dailyStreak: updatedUser.dailyStreak,
-        unlockedAchievements,
-        message: `Daily challenge završen! +${challenge.rewardXp} XP`,
+        message: 'Daily challenge završen!',
       };
     });
 

@@ -21,10 +21,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         email: true,
         role: true,
         avatar: true,
-        xp: true,
-        level: true,
-        dailyStreak: true,
-        lastDailyDate: true,
       },
     });
 

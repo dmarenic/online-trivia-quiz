@@ -9,7 +9,6 @@ type DailyChallenge = {
   title: string;
   description: string;
   targetScore: number;
-  rewardXp: number;
   date: string;
 };
 
@@ -89,8 +88,8 @@ export default function DailyPage() {
             </h1>
 
             <p className="mt-3 max-w-2xl text-[#B8C4D6]">
-              Jedan dnevni izazov, jedan pokušaj i jasna XP nagrada za
-              ostvareni cilj.
+              Jedan dnevni izazov, jedan pokušaj i jasan cilj koji treba
+              ostvariti.
             </p>
           </div>
 
@@ -149,21 +148,13 @@ export default function DailyPage() {
                 {challenge.description}
               </p>
 
-              <div className="mt-8 grid max-w-2xl gap-4 sm:grid-cols-3">
+              <div className="mt-8 grid max-w-2xl gap-4 sm:grid-cols-2">
                 <div className={`${cardClass} p-5`}>
                   <p className="text-sm font-bold text-[#778DA9]">Cilj</p>
                   <p className="mt-2 text-3xl font-black">
                     {challenge.targetScore}
                   </p>
                   <p className="text-sm text-[#778DA9]">bodova</p>
-                </div>
-
-                <div className={`${cardClass} p-5`}>
-                  <p className="text-sm font-bold text-[#778DA9]">Nagrada</p>
-                  <p className="mt-2 text-3xl font-black">
-                    {challenge.rewardXp}
-                  </p>
-                  <p className="text-sm text-[#778DA9]">XP</p>
                 </div>
 
                 <div className={`${cardClass} p-5`}>
@@ -191,7 +182,7 @@ export default function DailyPage() {
 
               <p className="mt-3 text-[#B8C4D6]">
                 Daily Challenge možeš igrati jednom dnevno. Ostvari ciljni score
-                i osvoji XP nagradu.
+                i završi izazov.
               </p>
 
               {played ? (

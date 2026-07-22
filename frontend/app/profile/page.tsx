@@ -18,9 +18,6 @@ type User = {
   username: string;
   email: string;
   avatar?: string;
-  xp?: number;
-  level?: number;
-  dailyStreak?: number;
 };
 
 type UserStats = {
@@ -28,9 +25,6 @@ type UserStats = {
   bestScore: number;
   averageScore: number;
   accuracy: number;
-  totalXp: number;
-  level: number;
-  achievementCount: number;
 };
 
 type MatchHistoryItem = {
@@ -48,13 +42,6 @@ type GameResult = {
   id: string;
   nickname: string;
   score: number;
-  createdAt: string;
-};
-
-type Achievement = {
-  id: string;
-  title: string;
-  description: string;
   createdAt: string;
 };
 
@@ -97,7 +84,6 @@ export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
   const [results, setResults] = useState<GameResult[]>([]);
   const [dailyResults, setDailyResults] = useState<GameResult[]>([]);
-  const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [matchHistory, setMatchHistory] = useState<MatchHistoryItem[]>([]);
   const [roomInvites, setRoomInvites] = useState<RoomInvite[]>([]);
@@ -161,7 +147,6 @@ export default function ProfilePage() {
         const resultsData = await resultsRes.json();
 
         setResults(resultsData.results || []);
-        setAchievements(resultsData.achievements || []);
 
         setDailyResults(
           Array.isArray(resultsData.results)
@@ -257,11 +242,6 @@ setTimeout(() => {
     setRoomInvites((prev) => prev.filter((invite) => invite.id !== inviteId));
   }
 
-  const xp = stats?.totalXp ?? user?.xp ?? 0;
-  const level = stats?.level ?? user?.level ?? 1;
-  const xpForCurrentLevel = (level - 1) * 1000;
-  const xpProgress = xp - xpForCurrentLevel;
-  const progressPercent = Math.min((xpProgress / 1000) * 100, 100);
   const avatarSeed = encodeURIComponent(
   (user?.avatar || user?.username || "Player").trim()
 );
@@ -286,15 +266,6 @@ setTimeout(() => {
             ← Nazad
           </Link>
 
-          <nav className="flex flex-wrap gap-3">
-
-            <Link
-              href="/achievements"
-              className={primaryButtonClass}
-            >
-              Achievementi
-            </Link>
-          </nav>
         </header>
 
         {user && (
@@ -319,45 +290,9 @@ setTimeout(() => {
                   {user.username}
                 </h1>
                 <p className="mt-2 truncate text-[#B8C4D6]">{user.email}</p>
-
-                <div className="mt-6 rounded-2xl border border-[#778DA9]/15 bg-[#1B263B]/70 p-4">
-                  <p className="text-sm font-bold text-[#B8C4D6]">Daily Streak</p>
-                  <p className="mt-1 text-4xl font-black">
-                    {user.dailyStreak || 0}
-                    <span className="ml-2 text-base text-[#778DA9]">dana</span>
-                  </p>
-                </div>
               </div>
 
               <div className="p-6">
-                <div className="mb-6">
-                  <p className="text-sm font-bold uppercase tracking-[0.22em] text-[#778DA9]">
-                    Level Progress
-                  </p>
-
-                  <div className="mt-3 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-                    <div>
-                      <h2 className="text-4xl font-black">Level {level}</h2>
-                      <p className="mt-1 text-[#B8C4D6]">
-                        {xpProgress} / 1000 XP do sljedećeg levela
-                      </p>
-                    </div>
-
-                    <p className="rounded-full border border-[#778DA9]/20 bg-[#415A77]/20 px-4 py-2 font-black text-[#E0E1DD]">
-                      {xp} XP ukupno
-                    </p>
-                  </div>
-
-                  <div className="mt-5 h-4 w-full overflow-hidden rounded-full bg-[#0D1B2A]/80">
-                    <div
-                      className="h-full rounded-full bg-[#388E3C] transition-all duration-500"
-                      style={{
-                        width: `${progressPercent}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-
                 <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
                   <input
                     className={inputClass}
@@ -376,14 +311,12 @@ setTimeout(() => {
         )}
 
         {stats && (
-          <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
+          <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {[
               ['Ukupno igara', stats.totalGames],
               ['Najbolji rezultat', stats.bestScore],
               ['Prosječan score', stats.averageScore],
               ['Točnost', `${stats.accuracy}%`],
-              ['Ukupni XP', stats.totalXp],
-              ['Achievementi', stats.achievementCount],
             ].map(([label, value]) => (
               <div key={label} className={`${cardClass} p-5`}>
                 <p className="text-sm font-bold text-[#778DA9]">{label}</p>
@@ -581,37 +514,6 @@ setTimeout(() => {
               )}
             </section>
 
-            <section className={`${cardClass} p-5 sm:p-6`}>
-              <div className="mb-5 flex items-center justify-between gap-3">
-                <h2 className="text-2xl font-black">Achievementi</h2>
-                <Link
-                  href="/achievements"
-                  className="rounded-full border border-[#778DA9]/20 px-3 py-1.5 text-sm font-bold text-[#B8C4D6] transition hover:border-[#778DA9]/45 hover:bg-[#415A77]/20"
-                >
-                  Svi
-                </Link>
-              </div>
-
-              {achievements.length === 0 ? (
-                <p className="rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/45 p-5 text-[#778DA9]">
-                  Još nema postignuća.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {achievements.map((achievement) => (
-                    <div
-                      key={achievement.id}
-                      className="rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/55 p-4 transition hover:border-[#778DA9]/35 hover:bg-[#0D1B2A]/75"
-                    >
-                      <p className="font-black">{achievement.title}</p>
-                      <p className="mt-1 text-sm leading-6 text-[#B8C4D6]">
-                        {achievement.description}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
           </aside>
         </div>
       </div>

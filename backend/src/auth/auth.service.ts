@@ -58,10 +58,6 @@ export class AuthService {
         role: true,
         avatar: true,
         createdAt: true,
-        xp: true,
-        level: true,
-        dailyStreak: true,
-        lastDailyDate: true,
       },
     });
 
@@ -101,10 +97,6 @@ export class AuthService {
       email: user.email,
       role: user.role,
       avatar: user.avatar,
-      xp: user.xp,
-      level: user.level,
-      dailyStreak: user.dailyStreak,
-      lastDailyDate: user.lastDailyDate,
     };
 
     return {
