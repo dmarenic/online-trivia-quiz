@@ -246,6 +246,9 @@ if (!socket.connected) {
       setRoom(roomData);
       saveCurrentRoom(roomData);
       localStorage.setItem('returnToRoom', `/room?room=${roomData.code}`);
+      // Prepiši ?mode=create u ?room=KOD: refresh hosta tada ide join_room
+      // reconnect granom umjesto da create_room napravi novu sobu.
+      window.history.replaceState(null, '', `/room?room=${roomData.code}`);
       setSelectedCategory(roomData.selectedCategory ?? 'All');
       setSelectedDifficulty(roomData.selectedDifficulty ?? 'All');
       setTotalPlayers(roomData.players.length);
