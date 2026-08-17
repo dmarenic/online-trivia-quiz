@@ -2,7 +2,7 @@
 
 > Završni rad: Online Trivia Kviz za više igrača
 
-Online Trivia Quiz je moderna full-stack web aplikacija razvijena kao završni rad. Sustav omogućuje natjecanje više igrača u stvarnom vremenu kroz kvizove različitih kategorija, uz podršku za privatne sobe, sustav prijatelja, dnevne izazove, postignuća i ljestvice poretka.
+Online Trivia Quiz je moderna full-stack web aplikacija razvijena kao završni rad. Sustav omogućuje natjecanje više igrača u stvarnom vremenu kroz kvizove različitih kategorija, uz podršku za privatne sobe, sustav prijatelja, dnevne izazove i ljestvice poretka.
 
 ## Opis projekta
 
@@ -37,6 +37,8 @@ Projekt podržava:
 * Administratorsko upravljanje pitanjima
 * AI generiranje novih pitanja
 
+> **Socket protokol** (real-time sloj — svi eventi, payloadi i tijek partije) dokumentiran je zasebno u [`SOCKET_PROTOCOL.md`](SOCKET_PROTOCOL.md).
+
 ---
 
 # Live Demo
@@ -65,6 +67,7 @@ Deployment:
 * JWT autentifikacija
 * Upravljanje profilom
 * Promjena avatara
+* Promjena nadimka
 * Pregled statistike korisnika
 
 ## Daily Challenge
@@ -106,7 +109,7 @@ Deployment:
 
 ## Frontend
 
-### Next.js 15
+### Next.js 16
 
 Korišten za razvoj korisničkog sučelja aplikacije koristeći App Router arhitekturu.
 
@@ -400,6 +403,6 @@ Automatski se izvršava prilikom promjena u repozitoriju.
 
 # Autor
 
-Dominik Mrarenić
+Dominik Marenić
 
 Projekt je razvijen kao završni rad na temu **"Online Trivia Kviz za više igrača"** koristeći moderne full-stack tehnologije s naglaskom na multiplayer komunikaciju u stvarnom vremenu.

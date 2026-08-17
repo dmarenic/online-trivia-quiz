@@ -88,6 +88,9 @@ export default function ProfilePage() {
   const [matchHistory, setMatchHistory] = useState<MatchHistoryItem[]>([]);
   const [roomInvites, setRoomInvites] = useState<RoomInvite[]>([]);
   const [avatarInput, setAvatarInput] = useState('');
+  const [editingUsername, setEditingUsername] = useState(false);
+  const [usernameInput, setUsernameInput] = useState('');
+  const [savingUsername, setSavingUsername] = useState(false);
   const [toast, setToast] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error'>('success');
 
@@ -221,6 +224,71 @@ setTimeout(() => {
     localStorage.setItem('user', JSON.stringify(newUser));
   }
 
+  function startEditingUsername() {
+    if (!user) return;
+    setUsernameInput(user.username);
+    setEditingUsername(true);
+  }
+
+  async function updateUsername() {
+    if (!user) return;
+
+    const trimmed = usernameInput.trim();
+
+    if (trimmed.length < 1 || trimmed.length > 30) {
+      showToast('Nadimak mora imati 1–30 znakova.', 'error');
+      return;
+    }
+
+    if (trimmed === user.username) {
+      setEditingUsername(false);
+      return;
+    }
+
+    setSavingUsername(true);
+
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/users/me/username`,
+        {
+          method: 'PATCH',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ username: trimmed }),
+        },
+      );
+
+      if (res.status === 409) {
+        showToast('Taj nadimak je već zauzet.', 'error');
+        return;
+      }
+
+      if (!res.ok) {
+        showToast('Nadimak nije spremljen. Pokušaj ponovno.', 'error');
+        return;
+      }
+
+      const updatedUser = await res.json();
+
+      const newUser = {
+        ...user,
+        username: updatedUser.username,
+      };
+
+      setUser(newUser);
+      // Landing (app/page.tsx) i /room čitaju nadimak iz 'user'/'nickname' —
+      // osvježi oboje da se odmah koristi novi nadimak svugdje.
+      localStorage.setItem('user', JSON.stringify(newUser));
+      localStorage.setItem('nickname', updatedUser.username);
+
+      setEditingUsername(false);
+      showToast('Nadimak je spremljen.', 'success');
+    } catch {
+      showToast('Nadimak nije spremljen. Pokušaj ponovno.', 'error');
+    } finally {
+      setSavingUsername(false);
+    }
+  }
+
   async function deleteInvite(inviteId: string) {
     const res = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/users/room-invites/${inviteId}`,
@@ -286,9 +354,49 @@ setTimeout(() => {
                 <p className="text-sm font-bold uppercase tracking-[0.22em] text-[#778DA9]">
                   Player Profile
                 </p>
-                <h1 className="mt-2 truncate text-4xl font-black tracking-tight">
-                  {user.username}
-                </h1>
+                {editingUsername ? (
+                  <div className="mt-2">
+                    <input
+                      className={`${inputClass} text-center text-xl font-black`}
+                      value={usernameInput}
+                      onChange={(e) => setUsernameInput(e.target.value)}
+                      maxLength={30}
+                      autoFocus
+                      disabled={savingUsername}
+                    />
+
+                    <div className="mt-3 flex justify-center gap-2">
+                      <button
+                        onClick={updateUsername}
+                        disabled={savingUsername}
+                        className={`${successButtonClass} px-4 py-2 text-sm disabled:opacity-50`}
+                      >
+                        {savingUsername ? 'Spremam…' : 'Spremi'}
+                      </button>
+                      <button
+                        onClick={() => setEditingUsername(false)}
+                        disabled={savingUsername}
+                        className="rounded-2xl border border-[#778DA9]/25 px-4 py-2 text-sm font-bold text-[#B8C4D6] transition hover:bg-[#415A77]/20 disabled:opacity-50"
+                      >
+                        Odustani
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-2 flex items-center justify-center gap-2">
+                    <h1 className="truncate text-4xl font-black tracking-tight">
+                      {user.username}
+                    </h1>
+                    <button
+                      onClick={startEditingUsername}
+                      aria-label="Promijeni nadimak"
+                      title="Promijeni nadimak"
+                      className="shrink-0 rounded-full border border-[#778DA9]/25 p-2 text-sm text-[#B8C4D6] transition hover:border-[#778DA9]/50 hover:bg-[#415A77]/20"
+                    >
+                      ✏️
+                    </button>
+                  </div>
+                )}
                 <p className="mt-2 truncate text-[#B8C4D6]">{user.email}</p>
               </div>
 
@@ -409,30 +517,6 @@ setTimeout(() => {
                           </p>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section className={`${cardClass} p-5 sm:p-6`}>
-              <h2 className="mb-5 text-2xl font-black">Zadnje igre</h2>
-
-              {results.length === 0 ? (
-                <p className="rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/45 p-5 text-[#778DA9]">
-                  Još nema odigranih igara.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {results.map((result) => (
-                    <div
-                      key={result.id}
-                      className="flex justify-between rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/55 p-4"
-                    >
-                      <span>
-                        {new Date(result.createdAt).toLocaleDateString('hr-HR')}
-                      </span>
-                      <b>{result.score} bodova</b>
                     </div>
                   ))}
                 </div>

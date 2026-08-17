@@ -1,5 +1,6 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Delete,
   ForbiddenException,
@@ -10,10 +11,49 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
-import { AddFriendDto, InviteRoomDto, UpdateAvatarDto } from './dto/users.dto';
+import {
+  AddFriendDto,
+  InviteRoomDto,
+  UpdateAvatarDto,
+  UpdateUsernameDto,
+} from './dto/users.dto';
+
+// Točnost jednog meča u rasponu 0–100%, zaokružena na 1 decimalu.
+// Robusno na prljave podatke: correctAnswers se ograničava na [0, totalQuestions],
+// a meč bez pitanja (totalQuestions <= 0) daje 0 umjesto NaN.
+export function matchAccuracy(
+  correctAnswers: number,
+  totalQuestions: number,
+): number {
+  if (totalQuestions <= 0) return 0;
+
+  const clampedCorrect = Math.min(Math.max(correctAnswers, 0), totalQuestions);
+
+  return Number(((clampedCorrect / totalQuestions) * 100).toFixed(1));
+}
+
+// Ukupna ("mikro") točnost (Definicija A): Σ točnih / Σ svih pitanja × 100.
+// Redovi bez pitanja se preskaču, a correctAnswers se po redu ograničava na
+// totalQuestions da prljav red ne napuhne rezultat iznad 100%.
+export function aggregateAccuracy(
+  results: { correctAnswers: number; totalQuestions: number }[],
+): number {
+  let totalCorrect = 0;
+  let totalQuestions = 0;
+
+  for (const result of results) {
+    if (result.totalQuestions <= 0) continue;
+
+    totalCorrect += Math.min(result.correctAnswers, result.totalQuestions);
+    totalQuestions += result.totalQuestions;
+  }
+
+  return matchAccuracy(totalCorrect, totalQuestions);
+}
 
 @Controller('users')
 export class UsersController {
@@ -37,17 +77,10 @@ export class UsersController {
       },
     });
 
-    return matches.map((match) => {
-      const accuracy =
-        match.totalQuestions > 0
-          ? (match.correctAnswers / match.totalQuestions) * 100
-          : 0;
-
-      return {
-        ...match,
-        accuracy: Number(accuracy.toFixed(1)),
-      };
-    });
+    return matches.map((match) => ({
+      ...match,
+      accuracy: matchAccuracy(match.correctAnswers, match.totalQuestions),
+    }));
   }
 
   @UseGuards(JwtAuthGuard)
@@ -91,24 +124,13 @@ export class UsersController {
           totalGames
         : 0;
 
-    const totalCorrect = dbUser.results.reduce(
-      (sum, result) => sum + result.correctAnswers,
-      0,
-    );
-
-    const totalQuestions = dbUser.results.reduce(
-      (sum, result) => sum + result.totalQuestions,
-      0,
-    );
-
-    const accuracy =
-      totalQuestions > 0 ? (totalCorrect / totalQuestions) * 100 : 0;
+    const accuracy = aggregateAccuracy(dbUser.results);
 
     return {
       totalGames,
       bestScore,
       averageScore: Number(averageScore.toFixed(1)),
-      accuracy: Number(accuracy.toFixed(1)),
+      accuracy,
     };
   }
 
@@ -132,6 +154,40 @@ export class UsersController {
         avatar: true,
       },
     });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('me/username')
+  async updateUsername(
+    @CurrentUser() user: any,
+    @Body()
+    body: UpdateUsernameDto,
+  ) {
+    // Nadimak se veže na prijavljenog korisnika iz JWT-a, nikad iz tijela zahtjeva.
+    try {
+      return await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          username: body.username,
+        },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          role: true,
+          avatar: true,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Nadimak je već zauzet.');
+      }
+
+      throw error;
+    }
   }
 
   @UseGuards(JwtAuthGuard)
