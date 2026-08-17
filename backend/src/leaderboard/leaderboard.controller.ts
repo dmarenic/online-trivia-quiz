@@ -27,6 +27,12 @@ export class LeaderboardController {
     });
   }
 
+  // Rezultat se ne prima od klijenta, nego se izračunava na serveru iz
+  // poslanih odgovora: klijent šalje parove (questionId, answer), server
+  // dohvaća točne odgovore iz baze i sam broji točne. Time klijent ne može
+  // prijaviti proizvoljan broj bodova. Duplikati po questionId se uklanjaju
+  // (zadnji odgovor za isto pitanje pobjeđuje) da se jedno pitanje ne boduje
+  // više puta.
   @UseGuards(JwtAuthGuard)
   @Post()
   async saveResult(@CurrentUser() user: any, @Body() body: SaveResultDto) {

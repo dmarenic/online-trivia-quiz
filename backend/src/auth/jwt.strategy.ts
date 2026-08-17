@@ -12,6 +12,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
+  // Passport poziva validate() nakon što je potpis tokena već provjeren.
+  // Korisnik se namjerno ponovno čita iz baze umjesto da se vjeruje podacima
+  // iz payloada: tako obrisan korisnik s još valjanim tokenom nema pristup, a
+  // rute uvijek dobiju svježu ulogu i profil (JWT je nepromjenjiv nakon izdavanja).
   async validate(payload: { sub: string }) {
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },

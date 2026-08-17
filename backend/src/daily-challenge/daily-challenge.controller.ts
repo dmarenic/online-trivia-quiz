@@ -209,6 +209,11 @@ async getTodayChallenge() {
       }
     }
 
+    // Daily izazov se boduje bez bonusa na brzinu (1000 bodova po točnom
+    // odgovoru) jer se igra sam, bez natjecanja u realnom vremenu. Izazov je
+    // "ispunjen" kad score dosegne challenge.targetScore.
+    // totalQuestions je broj pitanja koje je server prepoznao kao valjana za
+    // ovaj izazov, a ne broj odgovora koje je klijent poslao.
     const totalQuestions = questions.length;
     const score = correctAnswers * 1000;
 
@@ -219,6 +224,10 @@ async getTodayChallenge() {
       };
     }
 
+    // Provjera "već igrano danas" i upis rezultata izvode se u jednoj
+    // transakciji: bez toga bi dva paralelna zahtjeva oba prošla provjeru i
+    // upisala dva rezultata. Dodatnu, konačnu garanciju daje unique ograničenje
+    // @@unique([userId, challengeId]) na DailyChallengeAttempt u schema.prisma.
     const result = await this.prisma.$transaction(async (tx) => {
       const alreadyAttempted = await tx.dailyChallengeAttempt.findFirst({
         where: {

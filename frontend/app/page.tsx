@@ -49,6 +49,9 @@ export default function Home() {
   const [roomCode, setRoomCode] = useState('');
   const [user, setUser] = useState<User | null>(null);
   const [invites, setInvites] = useState<Invite[]>([]);
+  // Dok se auth-stanje ne pročita iz localStorage, ne prikazujemo formu
+  // (izbjegava bljesak forme prijavljenom korisniku).
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -60,7 +63,10 @@ export default function Home() {
       setRoomCode(roomFromUrl.toUpperCase());
     }
 
-    if (!savedUser) return;
+    if (!savedUser) {
+      setLoading(false);
+      return;
+    }
 
     let socket: Socket | null = null;
     let inviteInterval: number | null = null;
@@ -172,6 +178,7 @@ export default function Home() {
 
       setUser(parsedUser);
       setNickname(parsedUser.username);
+      setLoading(false);
 
       socket = io(process.env.NEXT_PUBLIC_API_URL!, {
         transports: ['websocket'],
@@ -200,6 +207,7 @@ export default function Home() {
       }, 2000);
     } catch {
       localStorage.removeItem('user');
+      setLoading(false);
     }
 
     return () => {
@@ -397,15 +405,25 @@ export default function Home() {
               </div>
             )}
 
-            <label className="mb-2 block text-sm font-bold text-[#B8C4D6]">
-              Nickname
-            </label>
-            <input
-              className={`${inputClass} mb-4`}
-              placeholder="Unesi nickname"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-            />
+            {!loading &&
+              (user ? (
+                <div className="mb-4 rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/55 p-4">
+                  <p className="text-sm text-[#778DA9]">Ulaziš kao</p>
+                  <p className="font-black text-[#E0E1DD]">{user.username}</p>
+                </div>
+              ) : (
+                <>
+                  <label className="mb-2 block text-sm font-bold text-[#B8C4D6]">
+                    Nickname
+                  </label>
+                  <input
+                    className={`${inputClass} mb-4`}
+                    placeholder="Unesi nickname"
+                    value={nickname}
+                    onChange={(e) => setNickname(e.target.value)}
+                  />
+                </>
+              ))}
 
             <button
               type="button"

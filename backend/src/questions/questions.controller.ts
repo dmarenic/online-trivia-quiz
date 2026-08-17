@@ -35,12 +35,7 @@ export class QuestionsController {
   constructor(private prisma: PrismaService) {}
 
   private validateCorrectAnswer(body: QuestionDto) {
-    const options = [
-      body.optionA,
-      body.optionB,
-      body.optionC,
-      body.optionD,
-    ];
+    const options = [body.optionA, body.optionB, body.optionC, body.optionD];
 
     if (!options.includes(body.correctAnswer)) {
       throw new BadRequestException(
@@ -138,6 +133,12 @@ Pravila:
 `,
       });
 
+      // Gemini povremeno vrati JSON u markdown bloku (```json ... ```) iako je
+      // u promptu zabranjen, pa se ograde skidaju prije parsiranja. Model nije
+      // pouzdan izvor podataka: ako parsiranje padne, korisnik dobiva poruku
+      // umjesto iznimke, a uspješno parsirana pitanja se dodatno filtriraju
+      // (sva polja popunjena + correctAnswer mora biti jedna od ponuđenih
+      // opcija) jer scoring logika ovisi o tom invarijantu.
       const rawText = response.text ?? '';
 
       const cleanedText = rawText
@@ -196,6 +197,7 @@ Pravila:
 
       await this.prisma.question.createMany({
         data: validQuestions,
+        skipDuplicates: true,
       });
 
       return {
@@ -204,7 +206,6 @@ Pravila:
         questions: validQuestions,
       };
     } catch (error: any) {
-      console.error('FULL GEMINI ERROR');
       console.error(error);
 
       return {

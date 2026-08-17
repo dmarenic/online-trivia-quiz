@@ -6,6 +6,10 @@ import Link from 'next/link';
 import Image from 'next/image';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
+// Socket je modul-singleton (jedna veza po tabu), a ne po-komponentni objekt:
+// React u razvoju montira komponente dvaput, pa bi veza unutar komponente
+// stvorila dvije sesije i dva igrača u sobi. autoConnect: false znači da se
+// veza otvara ručno u useEffectu, nakon što se token pročita iz localStoragea.
 const socket = io(API_URL || 'http://localhost:3000', {
   autoConnect: false,
   auth: {
@@ -110,6 +114,7 @@ export default function RoomPage() {
   const [timeLeft, setTimeLeft] = useState(15);
   const [questionEnded, setQuestionEnded] = useState(false);
   const [hasAnswered, setHasAnswered] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [answeredCount, setAnsweredCount] = useState(0);
   const [totalPlayers, setTotalPlayers] = useState(0);
   const [errorMessage, setErrorMessage] = useState('');
@@ -128,6 +133,9 @@ export default function RoomPage() {
 
   const finishSoundPlayedRef = useRef(false);
   const initializedRef = useRef(false);
+  // Zadnje vrijednosti za mount-only socket handlere (bez re-registracije).
+  const roomRef = useRef<Room | null>(null);
+  const timePerQuestionRef = useRef(15);
 function showToast(message: string, type: 'success' | 'error' = 'success') {
   setToast(message);
   setToastType(type);
@@ -152,6 +160,10 @@ function showToast(message: string, type: 'success' | 'error' = 'success') {
     return player.nickname === nickname;
   });
 
+  // Host se prepoznaje po userId-u kad je igrač prijavljen, a po socket id-u
+  // kad je gost. Dvostruka provjera je nužna jer se socket id mijenja pri
+  // svakom reconnectu, dok userId ostaje isti. Ovo je samo prikaz sučelja —
+  // server neovisno provjerava host prava (isRoomHost u game.gateway.ts).
   const isHost =
     !!room &&
     ((!!user?.id && room.hostUserId === user.id) ||
@@ -187,6 +199,16 @@ function showToast(message: string, type: 'success' | 'error' = 'success') {
 
     return friend.sender.id === user.id ? friend.receiver : friend.sender;
   }
+
+  useEffect(() => {
+    roomRef.current = room;
+    timePerQuestionRef.current = timePerQuestion;
+  }, [room, timePerQuestion]);
+
+  // Svako novo pitanje ponovno omogućuje odgovaranje (resetira "u tijeku").
+  useEffect(() => {
+    setSubmitting(false);
+  }, [question]);
 
   useEffect(() => {
     socket.auth = {
@@ -305,16 +327,16 @@ if (!socket.connected) {
         setTotalQuestions(data.totalQuestions);
         setAnsweredCount(data.answeredCount);
         setTotalPlayers(data.totalPlayers);
-        setTimeLeft(data.timePerQuestion ?? timePerQuestion);
+        setTimeLeft(data.timePerQuestion ?? timePerQuestionRef.current);
         setLeaderboard([]);
         setGameFinished(false);
         setQuestionEnded(false);
         setHasAnswered(false);
         setAnswerResult(null);
         setErrorMessage('');
-        if (room) {
+        if (roomRef.current) {
           saveCurrentRoom({
-            ...room,
+            ...roomRef.current,
             started: true,
           });
         }
@@ -374,15 +396,15 @@ if (!socket.connected) {
         setTotalQuestions(data.totalQuestions);
         setAnsweredCount(data.answeredCount);
         setTotalPlayers(data.totalPlayers);
-        setTimeLeft(data.timePerQuestion ?? timePerQuestion);
+        setTimeLeft(data.timePerQuestion ?? timePerQuestionRef.current);
         setLeaderboard([]);
         setQuestionEnded(false);
         setHasAnswered(false);
         setAnswerResult(null);
         setErrorMessage('');
-        if (room) {
+        if (roomRef.current) {
           saveCurrentRoom({
-            ...room,
+            ...roomRef.current,
             started: true,
           });
         }
@@ -404,6 +426,10 @@ if (!socket.connected) {
         totalPlayers: number;
       }) => {
         playSound(result.isCorrect ? 'correct' : 'wrong');
+
+        // Server je prihvatio odgovor — tek sada je igrač "odgovorio".
+        setSubmitting(false);
+        setHasAnswered(true);
 
         setAnswerResult({
           isCorrect: result.isCorrect,
@@ -482,6 +508,9 @@ if (!socket.connected) {
       }, 4000);
     });
 
+    // Ulazni event (create_room / join_room) smije se poslati samo jednom po
+    // životu stranice — inače bi ponovni mount (React strict mode, HMR) hostu
+    // stvorio drugu sobu ili igrača dodao dvaput.
     if (!initializedRef.current) {
       initializedRef.current = true;
 
@@ -529,7 +558,10 @@ if (!socket.connected) {
       socket.off('error_message');
       socket.off('kicked_from_room');
     };
-  }, [questionCount, timePerQuestion]);
+    // Namjerno mount-only: handleri se registriraju jednom; promjenjive
+    // vrijednosti (room, timePerQuestion) čitaju se iz refova.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function changeCategory(category: string) {
     if (!room) return;
@@ -576,10 +608,12 @@ if (!socket.connected) {
   }
 
   function submitAnswer(answer: string) {
-    if (!room || hasAnswered || questionEnded) return;
+    if (!room || hasAnswered || questionEnded || submitting) return;
 
     playSound('click');
-    setHasAnswered(true);
+    // "Odgovoreno" se prikazuje tek kad server potvrdi (answer_result);
+    // submitting samo blokira dvostruki klik dok čekamo potvrdu.
+    setSubmitting(true);
 
     socket?.emit('submit_answer', {
       roomCode: room.code,
@@ -843,7 +877,7 @@ if (!socket.connected) {
               <button
                 key={option}
                 onClick={() => submitAnswer(option)}
-                disabled={hasAnswered || questionEnded}
+                disabled={hasAnswered || questionEnded || submitting}
                 className="group flex items-center gap-4 rounded-[20px] border border-[#778DA9]/20 bg-[#1B263B]/88 p-5 text-left font-black text-[#E0E1DD] shadow-[0_14px_45px_rgba(0,0,0,0.18)] transition hover:-translate-y-0.5 hover:border-[#778DA9]/45 hover:bg-[#243551] disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0"
               >
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#0D1B2A] text-sm font-black text-[#B8C4D6] transition group-hover:bg-[#415A77] group-hover:text-white">
