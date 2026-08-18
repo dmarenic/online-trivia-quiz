@@ -2,6 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { apiFetch } from '@/src/lib/api';
+import {
+  cardClass,
+  primaryButtonClass,
+  shellClass,
+  successButtonClass,
+} from '@/src/lib/ui';
 
 type Question = {
   id: string;
@@ -23,24 +30,6 @@ type DailyChallenge = {
   category: string;
 };
 
-function playSound(src: string) {
-  const audio = new Audio(src);
-  audio.volume = 0.6;
-  audio.play().catch(() => {});
-}
-
-const shellClass =
-  'min-h-screen bg-[radial-gradient(circle_at_50%_-10%,rgba(65,90,119,0.2),transparent_34%),linear-gradient(180deg,#0D1B2A_0%,#071523_100%)] text-[#E0E1DD]';
-
-const cardClass =
-  'rounded-[20px] border border-[#778DA9]/20 bg-[#1B263B]/88 shadow-[0_20px_70px_rgba(0,0,0,0.28)] backdrop-blur';
-
-const primaryButtonClass =
-  'rounded-2xl bg-[#415A77] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#4f6d8f] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
-
-const successButtonClass =
-  'rounded-2xl bg-[#388E3C] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#43A047] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
-
 export default function DailyPlayPage() {
   const [challenge, setChallenge] = useState<DailyChallenge | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -50,7 +39,6 @@ export default function DailyPlayPage() {
   const [resultMessage, setResultMessage] = useState('');
   const [answers, setAnswers] = useState<DailyAnswer[]>([]);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
   const [locked, setLocked] = useState(false);
   const [submitError, setSubmitError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -58,42 +46,29 @@ export default function DailyPlayPage() {
   useEffect(() => {
     async function loadDaily() {
       const savedUser = localStorage.getItem('user');
-const token = localStorage.getItem('token');
+      const token = localStorage.getItem('token');
 
-if (!savedUser || !token) {
-  localStorage.removeItem('user');
-  localStorage.removeItem('token');
-  window.location.replace('/login');
-  return;
-}
-      const statusRes = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/daily-challenge/status/me`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
+      if (!savedUser || !token) {
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        window.location.replace('/login');
+        return;
+      }
+      const status = await apiFetch<{ played: boolean }>(
+        '/daily-challenge/status/me',
       );
-
-      const status = await statusRes.json();
 
       if (status.played) {
         window.location.replace('/daily');
         return;
       }
 
-      const challengeRes = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/daily-challenge`,
-      );
-
-      const challengeData: DailyChallenge = await challengeRes.json();
+      const challengeData = await apiFetch<DailyChallenge>('/daily-challenge');
       setChallenge(challengeData);
 
-      const questionsRes = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/daily-challenge/${challengeData.id}/questions`,
+      const questionsData = await apiFetch<Question[]>(
+        `/daily-challenge/${challengeData.id}/questions`,
       );
-
-      const questionsData: Question[] = await questionsRes.json();
       setQuestions(questionsData);
     }
 
@@ -109,27 +84,20 @@ if (!savedUser || !token) {
       return;
     }
 
-    const user = JSON.parse(savedUser);
+    const user = JSON.parse(savedUser) as { username: string };
 
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/daily-challenge/submit`,
+    // apiFetch baca iznimku na neuspješan odgovor, pa je finishChallenge
+    // hvata i prikazuje ekran za ponovni pokušaj (odgovori se ne gube).
+    const data = await apiFetch<{ score?: number; message?: string }>(
+      '/daily-challenge/submit',
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({
           nickname: user.username,
           answers: finalAnswers,
         }),
       },
     );
-    if (!res.ok) {
-      throw new Error('Greška kod učitavanja stranice.');
-    }
-
-    const data = await res.json();
 
     setScore(data.score ?? 0);
     setResultMessage(data.message || 'Rezultat je spremljen.');
@@ -150,42 +118,42 @@ if (!savedUser || !token) {
   }
 
   function answer(option: string) {
-  if (locked) return;
+    if (locked) return;
 
-  const question = questions[current];
+    const question = questions[current];
 
-  setLocked(true);
-  setSelectedAnswer(option);
+    setLocked(true);
+    setSelectedAnswer(option);
 
-  const newAnswers = [
-    ...answers,
-    {
-      questionId: question.id,
-      answer: option,
-    },
-  ];
+    const newAnswers = [
+      ...answers,
+      {
+        questionId: question.id,
+        answer: option,
+      },
+    ];
 
-  setAnswers(newAnswers);
+    setAnswers(newAnswers);
 
-  setTimeout(async () => {
-    setSelectedAnswer(null);
-    setLocked(false);
+    setTimeout(async () => {
+      setSelectedAnswer(null);
+      setLocked(false);
 
-    if (current + 1 >= questions.length) {
-      await finishChallenge(newAnswers);
-    } else {
-      setCurrent((prev) => prev + 1);
-    }
-  }, 500);
-}
-
-  function getOptionClass(option: string) {
-  if (option === selectedAnswer) {
-    return 'border-[#415A77]/60 bg-[#415A77]/25 text-[#E0E1DD] ring-4 ring-[#415A77]/15';
+      if (current + 1 >= questions.length) {
+        await finishChallenge(newAnswers);
+      } else {
+        setCurrent((prev) => prev + 1);
+      }
+    }, 500);
   }
 
-  return 'border-[#778DA9]/20 bg-[#1B263B]/88 text-[#E0E1DD] hover:-translate-y-0.5 hover:border-[#778DA9]/45 hover:bg-[#243551]';
-}
+  function getOptionClass(option: string) {
+    if (option === selectedAnswer) {
+      return 'border-[#415A77]/60 bg-[#415A77]/25 text-[#E0E1DD] ring-4 ring-[#415A77]/15';
+    }
+
+    return 'border-[#778DA9]/20 bg-[#1B263B]/88 text-[#E0E1DD] hover:-translate-y-0.5 hover:border-[#778DA9]/45 hover:bg-[#243551]';
+  }
 
   if (!challenge || questions.length === 0) {
     return (
@@ -209,8 +177,12 @@ if (!savedUser || !token) {
 
   if (submitError) {
     return (
-      <main className={`${shellClass} flex items-center justify-center p-4 sm:p-6`}>
-        <section className={`${cardClass} w-full max-w-2xl p-5 text-center sm:p-8`}>
+      <main
+        className={`${shellClass} flex items-center justify-center p-4 sm:p-6`}
+      >
+        <section
+          className={`${cardClass} w-full max-w-2xl p-5 text-center sm:p-8`}
+        >
           <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
             Spremanje rezultata nije uspjelo
           </h1>
@@ -242,8 +214,12 @@ if (!savedUser || !token) {
 
   if (finished) {
     return (
-      <main className={`${shellClass} flex items-center justify-center p-4 sm:p-6`}>
-        <section className={`${cardClass} w-full max-w-2xl p-5 text-center sm:p-8`}>
+      <main
+        className={`${shellClass} flex items-center justify-center p-4 sm:p-6`}
+      >
+        <section
+          className={`${cardClass} w-full max-w-2xl p-5 text-center sm:p-8`}
+        >
           <p className="mb-3 text-sm font-bold uppercase tracking-[0.24em] text-[#778DA9]">
             Daily Results
           </p>
@@ -323,8 +299,6 @@ if (!savedUser || !token) {
             </h2>
           </div>
         </section>
-
-        
 
         <section className="grid gap-4 md:grid-cols-2">
           {question.options.map((option, index) => (

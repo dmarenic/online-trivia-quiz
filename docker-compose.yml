@@ -45,7 +45,10 @@ services:
     container_name: trivia-frontend
     restart: unless-stopped
     env_file:
-      - ./frontend/.env.local
+      # Nije obavezan: NEXT_PUBLIC_API_URL se ugraduje u build (ARG iznad),
+      # pa se stack podize i u cistom klonu gdje .env.local ne postoji.
+      - path: ./frontend/.env.local
+        required: false
     depends_on:
       - backend
     ports:

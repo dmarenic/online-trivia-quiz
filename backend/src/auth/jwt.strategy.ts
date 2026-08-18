@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuthenticatedUser, JwtPayload } from './auth.types';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -16,7 +17,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   // Korisnik se namjerno ponovno čita iz baze umjesto da se vjeruje podacima
   // iz payloada: tako obrisan korisnik s još valjanim tokenom nema pristup, a
   // rute uvijek dobiju svježu ulogu i profil (JWT je nepromjenjiv nakon izdavanja).
-  async validate(payload: { sub: string }) {
+  async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       select: {

@@ -108,6 +108,9 @@ model DailyChallengeCompletion {
   @@index([challengeId])
 }
 
+// Pravilo "jedan pokušaj dnevno" nije samo aplikacijska provjera: @@unique
+// ispod ga podiže na razinu baze, pa ga ni istovremeni zahtjevi ni greška u
+// kodu ne mogu zaobići (v. transakciju u daily-challenge.controller.ts).
 model DailyChallengeAttempt {
   id          String   @id @default(cuid())
   userId      String

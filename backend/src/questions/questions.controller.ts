@@ -8,6 +8,7 @@ import {
   Post,
   UseGuards,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { GoogleGenAI } from '@google/genai';
 import { PrismaService } from '../prisma/prisma.service';
@@ -28,6 +29,8 @@ type GeneratedQuestion = {
 
 @Controller('questions')
 export class QuestionsController {
+  private readonly logger = new Logger(QuestionsController.name);
+
   private ai = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY!,
   });
@@ -42,6 +45,19 @@ export class QuestionsController {
         'Točan odgovor mora biti jednak jednoj od ponuđenih opcija.',
       );
     }
+  }
+
+  // GenerateAiQuestionsDto dopušta i hrvatske nazive težina, a baza i filter
+  // sobe koriste isključivo easy/medium/hard — zato se vrijednost normalizira
+  // prije spremanja.
+  private normalizeDifficulty(difficulty: string) {
+    const difficultyMap: Record<string, string> = {
+      lagano: 'easy',
+      srednje: 'medium',
+      teško: 'hard',
+    };
+
+    return difficultyMap[difficulty] ?? difficulty;
   }
 
   @Get()
@@ -149,18 +165,24 @@ Pravila:
       let generatedQuestions: GeneratedQuestion[];
 
       try {
-        generatedQuestions = JSON.parse(cleanedText);
+        // Sirovi odgovor modela ostaje samo u logu — vraćanje klijentu bilo bi
+        // nepotrebno izlaganje internih detalja providera.
+        generatedQuestions = JSON.parse(cleanedText) as GeneratedQuestion[];
       } catch {
+        this.logger.warn(
+          `Gemini nije vratio ispravan JSON. Odgovor: ${rawText.slice(0, 500)}`,
+        );
+
         return {
           success: false,
           message: 'Gemini nije vratio ispravan JSON. Pokušaj ponovno.',
-          rawText,
         };
       }
 
       const validQuestions = generatedQuestions
         .map((question) => ({
           category: body.category,
+          difficulty: this.normalizeDifficulty(body.difficulty),
           question: question.question,
           optionA: question.optionA,
           optionB: question.optionB,
@@ -205,14 +227,14 @@ Pravila:
         message: `Generirano i spremljeno ${validQuestions.length} pitanja.`,
         questions: validQuestions,
       };
-    } catch (error: any) {
-      console.error(error);
+    } catch (error) {
+      // Detalj greške (ključ, kvota, model) ide isključivo u server log;
+      // klijent dobiva generičku poruku.
+      this.logger.error('Gemini generiranje pitanja nije uspjelo', error);
 
       return {
         success: false,
-        message:
-          error?.message ||
-          'Gemini API trenutno nije dostupan. Pokušaj ponovno kasnije.',
+        message: 'Gemini API trenutno nije dostupan. Pokušaj ponovno kasnije.',
       };
     }
   }
@@ -224,6 +246,7 @@ Pravila:
     return this.prisma.question.create({
       data: {
         category: body.category,
+        difficulty: body.difficulty,
         question: body.question,
         optionA: body.optionA,
         optionB: body.optionB,
@@ -254,6 +277,7 @@ Pravila:
       },
       data: {
         category: body.category,
+        difficulty: body.difficulty,
         question: body.question,
         optionA: body.optionA,
         optionB: body.optionB,

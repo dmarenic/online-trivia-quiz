@@ -2,6 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
+import {
+  cardClass,
+  dangerButtonClass,
+  primaryButtonClass,
+  shellClass,
+} from '@/src/lib/ui';
 
 type PlayerResult = {
   id: string;
@@ -17,18 +23,6 @@ type GameHistory = {
   players: PlayerResult[];
 };
 
-const shellClass =
-  'min-h-screen bg-[radial-gradient(circle_at_50%_-10%,rgba(65,90,119,0.2),transparent_34%),linear-gradient(180deg,#0D1B2A_0%,#071523_100%)] text-[#E0E1DD]';
-
-const cardClass =
-  'rounded-[20px] border border-[#778DA9]/20 bg-[#1B263B]/88 shadow-[0_20px_70px_rgba(0,0,0,0.28)] backdrop-blur';
-
-const primaryButtonClass =
-  'rounded-2xl bg-[#415A77] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#4f6d8f] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
-
-const dangerButtonClass =
-  'rounded-2xl bg-[#C62828] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#D32F2F] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
-
 function getRankLabel(index: number) {
   if (index === 0) return '🥇';
   if (index === 1) return '🥈';
@@ -37,6 +31,11 @@ function getRankLabel(index: number) {
   return index + 1;
 }
 
+// Ovo je poredak JEDNE sobe, a ne globalna ljestvica iz baze: povijest partija
+// zapisuje room stranica u localStorage pod ključem roomGameHistory:<kod sobe>.
+// Zato je vidljiva samo na uređaju na kojem se igralo i briše se čišćenjem
+// preglednika — globalni rezultati prijavljenih igrača žive u tablici
+// GameResult i prikazuju se na profilu i dnevnoj ljestvici.
 export default function LeaderboardPage() {
   const [games, setGames] = useState<GameHistory[]>([]);
   const [roomCode, setRoomCode] = useState('');
@@ -58,6 +57,9 @@ export default function LeaderboardPage() {
     }
   }, []);
 
+  // Zbrajanje rezultata kroz sve partije te sobe. Ključ je nadimak, a ne id
+  // igrača, jer se socket id mijenja pri svakom reconnectu — isti bi se igrač
+  // inače pojavio više puta u ukupnom poretku.
   const overallLeaderboard = useMemo(() => {
     const playerMap = new Map<
       string,
@@ -156,7 +158,11 @@ export default function LeaderboardPage() {
             </p>
           </div>
 
-          <button type="button" onClick={goBackToLobby} className={primaryButtonClass}>
+          <button
+            type="button"
+            onClick={goBackToLobby}
+            className={primaryButtonClass}
+          >
             ← Nazad u lobby
           </button>
         </header>
@@ -246,9 +252,7 @@ export default function LeaderboardPage() {
                     </div>
 
                     <div className="text-left sm:text-right">
-                      <p className="text-2xl font-black">
-                        {player.totalScore}
-                      </p>
+                      <p className="text-2xl font-black">{player.totalScore}</p>
                       <p className="text-xs font-semibold uppercase tracking-wider text-[#778DA9]">
                         bodova
                       </p>
@@ -260,7 +264,10 @@ export default function LeaderboardPage() {
 
             <section className="space-y-6">
               {games.map((game) => (
-                <article key={game.gameNumber} className={`${cardClass} p-5 sm:p-6`}>
+                <article
+                  key={game.gameNumber}
+                  className={`${cardClass} p-5 sm:p-6`}
+                >
                   <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
                     <div>
                       <p className="text-sm font-bold uppercase tracking-[0.22em] text-[#778DA9]">

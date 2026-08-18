@@ -1,8 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { apiFetch } from '../../src/lib/api';
+import { apiFetch } from '@/src/lib/api';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import {
+  cardClass,
+  primaryButtonClass,
+  shellClass,
+  successButtonClass,
+} from '@/src/lib/ui';
 
 type DailyChallenge = {
   id: string;
@@ -17,19 +24,8 @@ type DailyStatus = {
   completed?: boolean;
 };
 
-const shellClass =
-  'min-h-screen bg-[radial-gradient(circle_at_50%_-10%,rgba(65,90,119,0.2),transparent_34%),linear-gradient(180deg,#0D1B2A_0%,#071523_100%)] text-[#E0E1DD]';
-
-const cardClass =
-  'rounded-[20px] border border-[#778DA9]/20 bg-[#1B263B]/88 shadow-[0_20px_70px_rgba(0,0,0,0.28)] backdrop-blur';
-
-const primaryButtonClass =
-  'rounded-2xl bg-[#415A77] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#4f6d8f] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
-
-const successButtonClass =
-  'rounded-2xl bg-[#388E3C] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#43A047] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
-
 export default function DailyPage() {
+  const router = useRouter();
   const [played, setPlayed] = useState(false);
   const [challenge, setChallenge] = useState<DailyChallenge | null>(null);
   const [message, setMessage] = useState('');
@@ -71,7 +67,7 @@ export default function DailyPage() {
       return;
     }
 
-    window.location.href = '/daily/play';
+    router.push('/daily/play');
   }
 
   return (
@@ -101,10 +97,7 @@ export default function DailyPage() {
               ← Nazad
             </Link>
 
-            <Link
-              href="/daily/leaderboard"
-              className={primaryButtonClass}
-            >
+            <Link href="/daily/leaderboard" className={primaryButtonClass}>
               Daily Leaderboard
             </Link>
 

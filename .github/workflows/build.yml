@@ -24,6 +24,11 @@ jobs:
       - run: npm ci
       - run: npm audit --audit-level=high
       - run: npx prisma generate
+      - run: npx prisma validate
+      - run: npx tsc -p tsconfig.build.json --noEmit
+      # ESLint u ovom projektu ima --fix; u CI-u ga pokrećemo bez njega da
+      # provjera stvarno padne kad kod nije uredan.
+      - run: npx eslint "src/**/*.ts" "test/**/*.ts"
       - run: npm run build
       - run: npm test
 
@@ -45,6 +50,9 @@ jobs:
 
       - run: npm ci
       - run: npm audit --audit-level=high
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npx tsc --noEmit
       - run: npm run build
         env:
           NEXT_PUBLIC_API_URL: http://localhost:3000

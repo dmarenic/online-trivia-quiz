@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 
 import { UsersController } from './users.controller';
-import { PrismaService } from '../prisma/prisma.service';
 
+// PrismaService dolazi iz globalnog PrismaModulea, pa ga moduli više ne
+// registriraju sami.
 @Module({
   controllers: [UsersController],
-  providers: [PrismaService],
 })
 export class UsersModule {}

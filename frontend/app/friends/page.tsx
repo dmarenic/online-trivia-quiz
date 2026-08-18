@@ -3,6 +3,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { apiFetch } from '@/src/lib/api';
+import {
+  cardClass,
+  inputClass,
+  primaryButtonClass,
+  shellClass,
+} from '@/src/lib/ui';
 
 type User = {
   id: string;
@@ -24,18 +31,6 @@ type FriendsResponse = {
   outgoingRequests: Friend[];
 };
 
-const shellClass =
-  'min-h-screen bg-[radial-gradient(circle_at_50%_-10%,rgba(65,90,119,0.2),transparent_34%),linear-gradient(180deg,#0D1B2A_0%,#071523_100%)] text-[#E0E1DD]';
-
-const cardClass =
-  'rounded-[20px] border border-[#778DA9]/20 bg-[#1B263B]/88 shadow-[0_20px_70px_rgba(0,0,0,0.28)] backdrop-blur';
-
-const inputClass =
-  'w-full rounded-2xl border border-[#778DA9]/20 bg-[#0D1B2A]/70 px-4 py-3 text-[#E0E1DD] outline-none transition placeholder:text-[#778DA9] focus:border-[#778DA9]/55 focus:ring-4 focus:ring-[#778DA9]/10';
-
-const primaryButtonClass =
-  'rounded-2xl bg-[#415A77] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#4f6d8f] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
-
 const successButtonClass =
   'rounded-2xl bg-[#388E3C] px-4 py-2 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#43A047] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
 
@@ -52,34 +47,29 @@ export default function FriendsPage() {
   const [outgoingRequests, setOutgoingRequests] = useState<Friend[]>([]);
   const [message, setMessage] = useState('');
   const [addingFriend, setAddingFriend] = useState(false);
-  const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
+  const [processingRequestId, setProcessingRequestId] = useState<string | null>(
+    null,
+  );
 
   const loadFriends = useCallback(async () => {
     const token = localStorage.getItem('token');
 
     if (!token) {
       localStorage.removeItem('user');
-  localStorage.removeItem('token');
+      localStorage.removeItem('token');
 
-  router.replace('/login');
+      router.replace('/login');
       return;
     }
 
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/users/me/friends`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      },
-    );
+    let data: FriendsResponse;
 
-    if (!res.ok) {
+    try {
+      data = await apiFetch<FriendsResponse>('/users/me/friends');
+    } catch {
       setMessage('Greška kod učitavanja prijatelja.');
       return;
     }
-
-    const data: FriendsResponse = await res.json();
 
     setFriends(Array.isArray(data.friends) ? data.friends : []);
     setIncomingRequests(
@@ -92,15 +82,15 @@ export default function FriendsPage() {
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
-const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token');
 
-if (!savedUser || !token) {
-  localStorage.removeItem('user');
-  localStorage.removeItem('token');
+    if (!savedUser || !token) {
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
 
-  router.replace('/login');
-  return;
-}
+      router.replace('/login');
+      return;
+    }
 
     try {
       const parsedUser: User = JSON.parse(savedUser);
@@ -113,133 +103,111 @@ if (!savedUser || !token) {
     }
 
     loadFriends();
-
-    
   }, [loadFriends, router]);
 
   async function addFriend(e: React.FormEvent) {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (addingFriend) return;
-  if (!user || !username.trim()) return;
+    if (addingFriend) return;
+    if (!user || !username.trim()) return;
 
-  setAddingFriend(true);
+    setAddingFriend(true);
 
-  try {
-    const token = localStorage.getItem('token');
+    try {
+      const token = localStorage.getItem('token');
 
-    if (!token) {
-      localStorage.removeItem('user');
-localStorage.removeItem('token');
-router.replace('/login');
-return;
-    }
+      if (!token) {
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        router.replace('/login');
+        return;
+      }
 
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/users/me/friends`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/users/me/friends`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            username: username.trim(),
+          }),
         },
-        body: JSON.stringify({
-          username: username.trim(),
-        }),
-      },
-    );
+      );
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (!res.ok || !data.success) {
-      setMessage(data.message || 'Greška kod slanja zahtjeva.');
-      return;
+      if (!res.ok || !data.success) {
+        setMessage(data.message || 'Greška kod slanja zahtjeva.');
+        return;
+      }
+
+      setUsername('');
+      setMessage(data.message || 'Zahtjev za prijateljstvo poslan.');
+      await loadFriends();
+    } catch (error) {
+      console.error(error);
+      setMessage('Greška kod slanja zahtjeva.');
+    } finally {
+      setAddingFriend(false);
     }
-
-    setUsername('');
-    setMessage(data.message || 'Zahtjev za prijateljstvo poslan.');
-    await loadFriends();
-  } catch (error) {
-    console.error(error);
-    setMessage('Greška kod slanja zahtjeva.');
-  } finally {
-    setAddingFriend(false);
   }
-}
 
   async function acceptRequest(requestId: string) {
-  if (processingRequestId) return;
+    if (processingRequestId) return;
 
-  setProcessingRequestId(requestId);
+    setProcessingRequestId(requestId);
 
-  try {
-    const token = localStorage.getItem('token');
+    try {
+      const token = localStorage.getItem('token');
 
-    if (!token) {
-      router.push('/login');
-      return;
-    }
+      if (!token) {
+        router.push('/login');
+        return;
+      }
 
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/users/me/friends/${requestId}/accept`,
-      {
+      await apiFetch(`/users/me/friends/${requestId}/accept`, {
         method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      },
-    );
+      });
 
-    if (!res.ok) {
-      throw new Error('Greška kod prihvaćanja zahtjeva.');
+      setMessage('Zahtjev prihvaćen.');
+      await loadFriends();
+    } catch (error) {
+      console.error(error);
+      setMessage('Greška kod prihvaćanja zahtjeva.');
+    } finally {
+      setProcessingRequestId(null);
     }
-
-    setMessage('Zahtjev prihvaćen.');
-    await loadFriends();
-  } catch (error) {
-    console.error(error);
-    setMessage('Greška kod prihvaćanja zahtjeva.');
-  } finally {
-    setProcessingRequestId(null);
   }
-}
 
-async function rejectRequest(requestId: string) {
-  if (processingRequestId) return;
+  async function rejectRequest(requestId: string) {
+    if (processingRequestId) return;
 
-  setProcessingRequestId(requestId);
+    setProcessingRequestId(requestId);
 
-  try {
-    const token = localStorage.getItem('token');
+    try {
+      const token = localStorage.getItem('token');
 
-    if (!token) {
-      router.push('/login');
-      return;
-    }
+      if (!token) {
+        router.push('/login');
+        return;
+      }
 
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/users/me/friends/${requestId}/reject`,
-      {
+      await apiFetch(`/users/me/friends/${requestId}/reject`, {
         method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      },
-    );
+      });
 
-    if (!res.ok) {
-      throw new Error('Greška kod odbijanja zahtjeva.');
+      setMessage('Zahtjev odbijen.');
+      await loadFriends();
+    } catch (error) {
+      console.error(error);
+      setMessage('Greška kod odbijanja zahtjeva.');
+    } finally {
+      setProcessingRequestId(null);
     }
-
-    setMessage('Zahtjev odbijen.');
-    await loadFriends();
-  } catch (error) {
-    console.error(error);
-    setMessage('Greška kod odbijanja zahtjeva.');
-  } finally {
-    setProcessingRequestId(null);
   }
-}
 
   function getFriendName(friend: Friend) {
     if (!user) return '';
@@ -303,7 +271,10 @@ async function rejectRequest(requestId: string) {
             <h2 className="mt-2 text-2xl font-black">Dodaj prijatelja</h2>
           </div>
 
-          <form onSubmit={addFriend} className="grid gap-3 sm:grid-cols-[1fr_auto]">
+          <form
+            onSubmit={addFriend}
+            className="grid gap-3 sm:grid-cols-[1fr_auto]"
+          >
             <input
               className={inputClass}
               placeholder="Username prijatelja"
@@ -312,12 +283,12 @@ async function rejectRequest(requestId: string) {
             />
 
             <button
-  type="submit"
-  disabled={addingFriend}
-  className={primaryButtonClass}
->
-  {addingFriend ? 'Šaljem...' : 'Dodaj'}
-</button>
+              type="submit"
+              disabled={addingFriend}
+              className={primaryButtonClass}
+            >
+              {addingFriend ? 'Šaljem...' : 'Dodaj'}
+            </button>
           </form>
 
           {message && (
@@ -331,13 +302,6 @@ async function rejectRequest(requestId: string) {
           <section className={`${cardClass} p-5 sm:p-6`}>
             <div className="mb-5 flex items-center justify-between gap-3">
               <h2 className="text-2xl font-black">Zahtjevi za prijateljstvo</h2>
-              <button
-  type="button"
-  onClick={loadFriends}
-  className="rounded-full border border-[#778DA9]/20 px-3 py-1 text-xs font-black text-[#B8C4D6] transition hover:border-[#778DA9]/45 hover:bg-[#415A77]/20"
->
-  Osvježi
-</button>
               <span className="rounded-full border border-[#778DA9]/20 bg-[#415A77]/20 px-3 py-1 text-xs font-black uppercase tracking-wider text-[#B8C4D6]">
                 {incomingRequests.length} pending
               </span>
@@ -365,22 +329,24 @@ async function rejectRequest(requestId: string) {
 
                     <div className="grid grid-cols-2 gap-2 sm:flex">
                       <button
-  type="button"
-  onClick={() => acceptRequest(request.id)}
-  disabled={processingRequestId === request.id}
-  className={successButtonClass}
->
-  {processingRequestId === request.id ? '...' : 'Prihvati'}
-</button>
+                        type="button"
+                        onClick={() => acceptRequest(request.id)}
+                        disabled={processingRequestId === request.id}
+                        className={successButtonClass}
+                      >
+                        {processingRequestId === request.id
+                          ? '...'
+                          : 'Prihvati'}
+                      </button>
 
                       <button
-  type="button"
-  onClick={() => rejectRequest(request.id)}
-  disabled={processingRequestId === request.id}
-  className={dangerButtonClass}
->
-  {processingRequestId === request.id ? '...' : 'Odbij'}
-</button>
+                        type="button"
+                        onClick={() => rejectRequest(request.id)}
+                        disabled={processingRequestId === request.id}
+                        className={dangerButtonClass}
+                      >
+                        {processingRequestId === request.id ? '...' : 'Odbij'}
+                      </button>
                     </div>
                   </div>
                 ))}

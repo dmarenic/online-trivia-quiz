@@ -6,10 +6,26 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
+import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
+import { Prisma } from '@prisma/client';
 import { randomInt } from 'crypto';
 import { PrismaService } from './prisma/prisma.service';
+import type { JwtPayload } from './auth/auth.types';
+import {
+  USERNAME_MAX_LENGTH,
+  USERNAME_MIN_LENGTH,
+} from './config/validation.constants';
+
+// Maksimalan broj igrača po sobi. Šalje se klijentu unutar toPublicRoom da
+// sučelje ne bi ponavljalo istu vrijednost kao vlastiti literal.
+const MAX_PLAYERS_PER_ROOM = 8;
+
+// Koliko pozivnica u sobu ostaje važeća. Ista vrijednost vrijedi i za REST
+// verziju (users.controller.ts) — soba živi u memoriji, pa starija pozivnica
+// najčešće vodi u sobu koje više nema.
+const ROOM_INVITE_TTL_MS = 30000;
 
 type Player = {
   id: string;
@@ -88,6 +104,7 @@ function toPublicRoom(room: Room) {
     selectedDifficulty: room.selectedDifficulty,
     questionCount: room.questionCount,
     timePerQuestion: room.timePerQuestion,
+    maxPlayers: MAX_PLAYERS_PER_ROOM,
   };
 }
 
@@ -106,6 +123,8 @@ export class GameGateway implements OnGatewayDisconnect {
   @WebSocketServer()
   server!: Server;
 
+  private readonly logger = new Logger(GameGateway.name);
+
   private rooms: Map<string, Room> = new Map();
   private timers: Map<string, NodeJS.Timeout> = new Map();
   // Grace-tajmer za auto-advance kad host ne prijeđe na sljedeće pitanje.
@@ -120,11 +139,13 @@ export class GameGateway implements OnGatewayDisconnect {
     );
   }
 
+  // Isti raspon kao za registrirano korisničko ime, da se prikazano ime igrača
+  // ponaša jednako bez obzira igra li gost ili prijavljeni korisnik.
   private isValidNickname(nickname: unknown): nickname is string {
     return (
       typeof nickname === 'string' &&
-      nickname.trim().length >= 1 &&
-      nickname.trim().length <= 30
+      nickname.trim().length >= USERNAME_MIN_LENGTH &&
+      nickname.trim().length <= USERNAME_MAX_LENGTH
     );
   }
 
@@ -141,6 +162,22 @@ export class GameGateway implements OnGatewayDisconnect {
       typeof category === 'string' &&
       category.trim().length >= 1 &&
       category.trim().length <= 50
+    );
+  }
+
+  // Dozvoljene težine: 'All' je sentinel za "bez filtra" u
+  // getQuestionsForSettings, ostale vrijednosti moraju odgovarati bazi.
+  private static readonly ALLOWED_DIFFICULTIES = [
+    'All',
+    'easy',
+    'medium',
+    'hard',
+  ];
+
+  private isValidDifficulty(difficulty: unknown): difficulty is string {
+    return (
+      typeof difficulty === 'string' &&
+      GameGateway.ALLOWED_DIFFICULTIES.includes(difficulty.trim())
     );
   }
 
@@ -182,6 +219,11 @@ export class GameGateway implements OnGatewayDisconnect {
     return value.trim();
   }
 
+  // Postavke sobe dolaze od klijenta pa se ne smiju vjerovati. Pravilo je
+  // namjerno asimetrično: besmislen ili premali unos vraća se na zadanu
+  // vrijednost, dok se prevelik samo obrezuje na gornju granicu — tako
+  // slučajna tipfeler-vrijednost ne pokvari partiju, a namjerno napuhan broj
+  // ne može opteretiti server.
   private getSafeQuestionCount(value: unknown, fallback = 10) {
     const count = Number(value);
 
@@ -224,14 +266,17 @@ export class GameGateway implements OnGatewayDisconnect {
   }
 
   private getUserFromSocket(client: Socket): SocketUser | null {
-    const token = client.handshake.auth?.token;
+    // Socket autentikacija je opcionalna: bez tokena korisnik igra kao gost.
+    // Token stiže u handshakeu, pa ga treba provjeriti ručno — HTTP guardovi
+    // se na WebSocket vezu ne primjenjuju.
+    const token: unknown = client.handshake.auth?.token;
 
-    if (!token) {
+    if (typeof token !== 'string' || !token) {
       return null;
     }
 
     try {
-      const payload = this.jwtService.verify(token);
+      const payload = this.jwtService.verify<JwtPayload>(token);
 
       return {
         id: payload.sub,
@@ -304,7 +349,7 @@ export class GameGateway implements OnGatewayDisconnect {
 
   // Ako host ne prijeđe na sljedeće pitanje unutar ovog perioda nakon što
   // pitanje završi, partija se automatski nastavlja — inače bi AFK (prisutan
-  // ali neaktivan) host zaglavio igru za sve ostale (BUG-B).
+  // ali neaktivan) host zaglavio igru za sve ostale.
   private static readonly HOST_ADVANCE_GRACE_MS = 30000;
 
   private clearAdvanceTimer(roomCode: string) {
@@ -386,7 +431,7 @@ export class GameGateway implements OnGatewayDisconnect {
   // nije uvijek na istoj poziciji (A–D) — redoslijed je isti za sve igrače
   // jer je pitanje dio stanja sobe, a ne stanja pojedinog klijenta.
   private async getQuestionsForSettings(category: string, difficulty: string) {
-    const where: any = {};
+    const where: Prisma.QuestionWhereInput = {};
 
     if (category !== 'All') {
       where.category = category;
@@ -444,7 +489,7 @@ export class GameGateway implements OnGatewayDisconnect {
       return;
     }
 
-    client.join(`user_${authUser.id}`);
+    void client.join(`user_${authUser.id}`);
   }
 
   @SubscribeMessage('send_room_invite')
@@ -528,7 +573,7 @@ export class GameGateway implements OnGatewayDisconnect {
           },
           {
             createdAt: {
-              lt: new Date(Date.now() - 30000),
+              lt: new Date(Date.now() - ROOM_INVITE_TTL_MS),
             },
           },
         ],
@@ -554,23 +599,29 @@ export class GameGateway implements OnGatewayDisconnect {
       .to(`user_${data.toUserId}`)
       .emit('room_invite_received', invite);
 
-    setTimeout(async () => {
-      try {
-        await this.prisma.roomInvite.deleteMany({
-          where: {
-            id: invite.id,
-          },
-        });
-
-        this.server.to(`user_${data.toUserId}`).emit('room_invite_expired', {
-          inviteId: invite.id,
-        });
-      } catch (error) {
-        console.error(error);
-      }
-    }, 30000);
+    // Pozivnica se sama gasi nakon isteka; async posao je izdvojen u metodu
+    // jer setTimeout ne čeka vraćeni Promise (pa greška ne bi imala hvatača).
+    setTimeout(() => {
+      void this.expireRoomInvite(invite.id, data.toUserId);
+    }, ROOM_INVITE_TTL_MS);
 
     return invite;
+  }
+
+  private async expireRoomInvite(inviteId: string, toUserId: string) {
+    try {
+      await this.prisma.roomInvite.deleteMany({
+        where: {
+          id: inviteId,
+        },
+      });
+
+      this.server.to(`user_${toUserId}`).emit('room_invite_expired', {
+        inviteId,
+      });
+    } catch (error) {
+      this.logger.error('Brisanje istekle pozivnice nije uspjelo', error);
+    }
   }
 
   @SubscribeMessage('create_room')
@@ -641,7 +692,7 @@ export class GameGateway implements OnGatewayDisconnect {
     };
 
     this.rooms.set(roomCode, room);
-    client.join(roomCode);
+    void client.join(roomCode);
 
     client.emit('room_created', toPublicRoom(room));
   }
@@ -691,7 +742,7 @@ export class GameGateway implements OnGatewayDisconnect {
       }
 
       // Gost (bez userId): match po nadimku SAMO ako je taj slot odspojen,
-      // inače bi drugi gost s istim nadimkom preuzeo tuđi aktivni slot (BUG-C).
+      // inače bi drugi gost s istim nadimkom preuzeo tuđi aktivni slot.
       return player.nickname === nickname && player.connected === false;
     });
 
@@ -702,7 +753,7 @@ export class GameGateway implements OnGatewayDisconnect {
 
       reconnectingPlayer.id = client.id;
       reconnectingPlayer.connected = true;
-      client.join(room.code);
+      void client.join(room.code);
 
       if (
         wasHost ||
@@ -756,13 +807,20 @@ export class GameGateway implements OnGatewayDisconnect {
       return;
     }
 
-    // Novi igrač ne smije preuzeti nadimak koji već drži spojeni igrač (BUG-C).
+    // Novi igrač ne smije preuzeti nadimak koji već drži spojeni igrač.
     const nicknameTaken = room.players.some(
       (player) => player.nickname === nickname && player.connected !== false,
     );
 
     if (nicknameTaken) {
       client.emit('error_message', 'Nadimak je već zauzet u ovoj sobi.');
+      return;
+    }
+
+    // Kapacitet se provjerava tek ovdje, nakon reconnect grane: igrač koji se
+    // vraća u punu sobu ne smije biti odbijen jer već zauzima svoje mjesto.
+    if (room.players.length >= MAX_PLAYERS_PER_ROOM) {
+      client.emit('error_message', 'Soba je puna.');
       return;
     }
 
@@ -778,7 +836,7 @@ export class GameGateway implements OnGatewayDisconnect {
     };
 
     room.players.push(player);
-    client.join(room.code);
+    void client.join(room.code);
 
     this.server.to(room.code).emit('player_joined', toPublicRoom(room));
     this.server.to(room.code).emit('room_updated', toPublicRoom(room));
@@ -828,7 +886,108 @@ export class GameGateway implements OnGatewayDisconnect {
 
     this.server.to(data.playerId).emit('kicked_from_room');
 
+    // Uklanjanje iz room.players nije dovoljno - socket ostaje u Socket.IO
+    // sobi i nastavlja primati broadcastove (chat, pitanja), pa ga treba
+    // izbaciti i s transportne razine.
+    this.server.in(data.playerId).socketsLeave(room.code);
+
+    if (this.disposeRoomIfEmpty(roomCode)) return;
+
     this.server.to(room.code).emit('room_updated', toPublicRoom(room));
+  }
+
+  // Zajednički cleanup za oba mjesta koja igrača trajno uklanjaju iz sobe
+  // (leave_room i kick_player). Kad soba ostane prazna, odgođeni cleanup iz
+  // handleDisconnecta se više neće pokrenuti jer taj igrač nije ni u jednoj
+  // sobi — bez ovoga bi prazna soba i njezini tajmeri ostali u memoriji do
+  // restarta procesa. Vraća true ako je soba obrisana.
+  private disposeRoomIfEmpty(roomCode: string): boolean {
+    const room = this.rooms.get(roomCode);
+
+    if (!room || room.players.length > 0) {
+      return false;
+    }
+
+    if (room.started && !room.resultsSaved) {
+      this.saveGameResults(room).catch((error) => {
+        this.logger.error('Greška kod spremanja rezultata', error);
+      });
+    }
+
+    const timer = this.timers.get(roomCode);
+
+    if (timer) {
+      clearInterval(timer);
+      this.timers.delete(roomCode);
+    }
+
+    this.clearAdvanceTimer(roomCode);
+    this.rooms.delete(roomCode);
+
+    return true;
+  }
+
+  // Eksplicitan izlazak iz sobe (gumb "Napusti sobu"). Za razliku od
+  // handleDisconnecta, koji igrača samo označi kao odspojenog jer refresh i
+  // kratki prekid veze nisu namjera da se izađe, ovdje se igrač uklanja odmah —
+  // inače bi zauvijek ostao u popisu kao "Offline", ulazio u totalPlayers i
+  // blokirao haveAllPlayersAnswered.
+  @SubscribeMessage('leave_room')
+  leaveRoom(
+    @MessageBody() data: { roomCode: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    if (!data || !this.isValidRoomCode(data.roomCode)) {
+      client.emit('error_message', 'Neispravan kod sobe.');
+      return;
+    }
+
+    // Blaži limit nego kod ulaska: normalan izlazak je jedan event po sobi,
+    // pa ovo zaustavlja samo automatizirano ponavljanje.
+    if (this.isRateLimited(`leave_${client.id}`, 10, 60000)) {
+      client.emit('error_message', 'Prebrzo napuštaš sobe. Pričekaj.');
+      return;
+    }
+
+    const roomCode = this.normalizeRoomCode(data.roomCode);
+    const room = this.rooms.get(roomCode);
+
+    if (!room) return;
+
+    const player = room.players.find((p) => p.id === client.id);
+
+    if (!player) return;
+
+    const wasHost = room.hostId === client.id;
+
+    room.players = room.players.filter((p) => p.id !== client.id);
+    void client.leave(room.code);
+
+    if (this.disposeRoomIfEmpty(roomCode)) return;
+
+    // Host je otišao namjerno, pa se uloga predaje odmah — grace period iz
+    // scheduleHostReassignment postoji samo zbog mogućeg povratka nakon refresha.
+    if (wasHost) {
+      const newHost = room.players.find((p) => p.connected !== false);
+
+      if (newHost) {
+        room.hostId = newHost.id;
+        room.hostUserId = newHost.userId;
+        newHost.isReady = true;
+      }
+    }
+
+    this.server.to(room.code).emit('room_updated', toPublicRoom(room));
+
+    // Ako je otišao zadnji igrač od kojeg se čekao odgovor, runda može
+    // završiti odmah umjesto da ostali čekaju istek tajmera.
+    if (
+      room.started &&
+      room.acceptingAnswers &&
+      this.haveAllPlayersAnswered(room)
+    ) {
+      this.endQuestion(room);
+    }
   }
   @SubscribeMessage('set_category')
   setCategory(
@@ -1002,7 +1161,11 @@ export class GameGateway implements OnGatewayDisconnect {
     @MessageBody() data: { roomCode: string; difficulty: string },
     @ConnectedSocket() client: Socket,
   ) {
-    if (!data || !this.isValidRoomCode(data.roomCode)) {
+    if (
+      !data ||
+      !this.isValidRoomCode(data.roomCode) ||
+      !this.isValidDifficulty(data.difficulty)
+    ) {
       client.emit('error_message', 'Neispravni podaci za težinu.');
       return;
     }
@@ -1174,7 +1337,7 @@ export class GameGateway implements OnGatewayDisconnect {
   }
 
   // Prelazak na sljedeće pitanje ili kraj igre. Zove se ručno (host preko
-  // next_question) i automatski (grace auto-advance iz endQuestion, BUG-B).
+  // next_question) i automatski (grace auto-advance iz endQuestion).
   private advanceQuestion(room: Room) {
     this.clearAdvanceTimer(room.code);
 
@@ -1206,7 +1369,7 @@ export class GameGateway implements OnGatewayDisconnect {
       this.server.to(room.code).emit('room_updated', toPublicRoom(room));
 
       this.saveGameResults(room).catch((error) => {
-        console.error('Greška kod spremanja rezultata:', error);
+        this.logger.error('Greška kod spremanja rezultata', error);
       });
 
       return;
@@ -1272,6 +1435,9 @@ export class GameGateway implements OnGatewayDisconnect {
   handleDisconnect(client: Socket) {
     this.messageTimestamps.delete(client.id);
     this.messageTimestamps.delete(`invite_${client.id}`);
+    this.messageTimestamps.delete(`create_${client.id}`);
+    this.messageTimestamps.delete(`join_${client.id}`);
+    this.messageTimestamps.delete(`leave_${client.id}`);
 
     for (const [roomCode, room] of this.rooms.entries()) {
       const player = room.players.find((p) => p.id === client.id);
@@ -1302,7 +1468,7 @@ export class GameGateway implements OnGatewayDisconnect {
         // saveGameResults sprječava dvostruko spremanje ako je već završila.
         if (latestRoom.started && !latestRoom.resultsSaved) {
           this.saveGameResults(latestRoom).catch((error) => {
-            console.error('Greška kod spremanja rezultata:', error);
+            this.logger.error('Greška kod spremanja rezultata', error);
           });
         }
 

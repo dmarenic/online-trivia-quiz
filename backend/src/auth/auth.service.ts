@@ -25,6 +25,8 @@ export class AuthService {
   }
 
   async register(body: RegisterDto) {
+    // Email se normalizira na mala slova jer je u bazi unique: bez toga bi se
+    // "Ime@mail.com" i "ime@mail.com" registrirali kao dva različita računa.
     const username = body.username.trim();
     const email = body.email.trim().toLowerCase();
     const password = body.password;
@@ -43,6 +45,10 @@ export class AuthService {
       throw new BadRequestException('Korisnik već postoji.');
     }
 
+    // Lozinka se nikada ne sprema u izvornom obliku. bcrypt sam generira i u
+    // hash ugrađuje "salt", pa dva korisnika s istom lozinkom imaju različit
+    // hash; faktor 10 je kompromis između otpornosti na napad grubom silom i
+    // trajanja prijave.
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await this.prisma.user.create({
@@ -81,6 +87,8 @@ export class AuthService {
       },
     });
 
+    // Namjerno ista poruka za nepostojeći email i za krivu lozinku: različite
+    // poruke napadaču otkrivaju koji su emailovi registrirani u sustavu.
     if (!user) {
       throw new UnauthorizedException('Pogrešan email ili password.');
     }

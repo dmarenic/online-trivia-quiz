@@ -1,11 +1,21 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { apiFetch } from '../../../src/lib/api';
+import { apiFetch } from '@/src/lib/api';
+import { QUIZ_CATEGORIES } from '@/src/lib/categories';
+
+// Prikaz težine na hrvatskom; vrijednosti u bazi ostaju easy/medium/hard.
+const DIFFICULTY_LABELS: Record<string, string> = {
+  easy: 'Lako',
+  medium: 'Srednje',
+  hard: 'Teško',
+};
+import { cardClass, dangerButtonClass, shellClass } from '@/src/lib/ui';
 
 type Question = {
   id: string;
   category: string;
+  difficulty: string;
   question: string;
   optionA: string;
   optionB: string;
@@ -28,6 +38,7 @@ type AiGenerateResponse = {
 
 const emptyForm = {
   category: '',
+  difficulty: 'medium',
   question: '',
   optionA: '',
   optionB: '',
@@ -35,28 +46,6 @@ const emptyForm = {
   optionD: '',
   correctAnswer: '',
 };
-
-const categories = [
-  'Sport',
-  'Geografija',
-  'Računarstvo',
-  'Povijest',
-  'Znanost',
-  'Književnost',
-  'Umjetnost',
-  'Glazba',
-  'Videoigre',
-  'Trendovi i aktualnosti',
-  'Poslovanje i brendovi',
-  'Životinje',
-  'Ljudsko tijelo i zdravlje',
-];
-
-const shellClass =
-  'min-h-screen bg-[radial-gradient(circle_at_50%_-10%,rgba(65,90,119,0.2),transparent_34%),linear-gradient(180deg,#0D1B2A_0%,#071523_100%)] text-[#E0E1DD]';
-
-const cardClass =
-  'rounded-[20px] border border-[#778DA9]/20 bg-[#1B263B]/88 shadow-[0_20px_70px_rgba(0,0,0,0.28)] backdrop-blur';
 
 const inputClass =
   'w-full rounded-2xl border border-[#778DA9]/20 bg-[#0D1B2A]/70 px-4 py-3 text-[#E0E1DD] outline-none transition placeholder:text-[#778DA9] focus:border-[#778DA9]/55 focus:ring-4 focus:ring-[#778DA9]/10 disabled:cursor-not-allowed disabled:opacity-60';
@@ -66,9 +55,6 @@ const primaryButtonClass =
 
 const successButtonClass =
   'rounded-2xl bg-[#388E3C] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#43A047] hover:shadow-lg hover:shadow-black/20 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0';
-
-const dangerButtonClass =
-  'rounded-2xl bg-[#C62828] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#D32F2F] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
 
 const ghostButtonClass =
   'rounded-2xl border border-[#778DA9]/20 px-5 py-3 font-bold text-[#B8C4D6] transition hover:border-[#778DA9]/45 hover:bg-[#415A77]/20';
@@ -106,15 +92,15 @@ export default function AdminQuestionsPage() {
   useEffect(() => {
     async function initialize() {
       const savedUser = localStorage.getItem('user');
-const token = localStorage.getItem('token');
+      const token = localStorage.getItem('token');
 
-if (!savedUser || !token) {
-  localStorage.removeItem('user');
-  localStorage.removeItem('token');
+      if (!savedUser || !token) {
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
 
-  window.location.replace('/login');
-  return;
-}
+        window.location.replace('/login');
+        return;
+      }
 
       try {
         const parsedUser: User = JSON.parse(savedUser);
@@ -124,9 +110,7 @@ if (!savedUser || !token) {
           return;
         }
 
-        queueMicrotask(() => {
-          setUser(parsedUser);
-        });
+        setUser(parsedUser);
 
         await fetchQuestions();
       } catch {
@@ -197,24 +181,24 @@ if (!savedUser || !token) {
     }
 
     if (form.question.trim().length < 5) {
-  setFormMessage('Pitanje mora imati barem 5 znakova.');
-  return false;
-}
+      setFormMessage('Pitanje mora imati barem 5 znakova.');
+      return false;
+    }
 
-if (form.category.trim().length < 2) {
-  setFormMessage('Kategorija mora imati barem 2 znaka.');
-  return false;
-}
+    if (form.category.trim().length < 2) {
+      setFormMessage('Kategorija mora imati barem 2 znaka.');
+      return false;
+    }
 
-if (
-  form.optionA.trim().length < 1 ||
-  form.optionB.trim().length < 1 ||
-  form.optionC.trim().length < 1 ||
-  form.optionD.trim().length < 1
-) {
-  setFormMessage('Svi odgovori moraju biti popunjeni.');
-  return false;
-}
+    if (
+      form.optionA.trim().length < 1 ||
+      form.optionB.trim().length < 1 ||
+      form.optionC.trim().length < 1 ||
+      form.optionD.trim().length < 1
+    ) {
+      setFormMessage('Svi odgovori moraju biti popunjeni.');
+      return false;
+    }
 
     const validAnswers = ['A', 'B', 'C', 'D'];
 
@@ -233,30 +217,35 @@ if (
 
     if (saving) return;
 
-setSaving(true);
-
     setFormMessage('');
 
+    // setSaving tek nakon uspjesne validacije - inace bi neispravna forma
+    // trajno ostavila gumb u stanju "Spremanje..." (rani return preskace finally).
     if (!validateForm()) return;
 
+    setSaving(true);
+
     const optionMap = {
-  A: form.optionA.trim(),
-  B: form.optionB.trim(),
-  C: form.optionC.trim(),
-  D: form.optionD.trim(),
-};
+      A: form.optionA.trim(),
+      B: form.optionB.trim(),
+      C: form.optionC.trim(),
+      D: form.optionD.trim(),
+    };
 
-const selectedKey = form.correctAnswer.trim().toUpperCase() as keyof typeof optionMap;
+    const selectedKey = form.correctAnswer
+      .trim()
+      .toUpperCase() as keyof typeof optionMap;
 
-const body = {
-  category: form.category.trim(),
-  question: form.question.trim(),
-  optionA: form.optionA.trim(),
-  optionB: form.optionB.trim(),
-  optionC: form.optionC.trim(),
-  optionD: form.optionD.trim(),
-  correctAnswer: optionMap[selectedKey],
-};
+    const body = {
+      category: form.category.trim(),
+      difficulty: form.difficulty,
+      question: form.question.trim(),
+      optionA: form.optionA.trim(),
+      optionB: form.optionB.trim(),
+      optionC: form.optionC.trim(),
+      optionD: form.optionD.trim(),
+      correctAnswer: optionMap[selectedKey],
+    };
 
     try {
       if (editingId) {
@@ -282,8 +271,8 @@ const body = {
       console.error(error);
       setFormMessage('Greška kod spremanja pitanja. Provjeri admin prava.');
     } finally {
-  setSaving(false);
-}
+      setSaving(false);
+    }
   }
 
   function startEditing(question: Question) {
@@ -291,21 +280,22 @@ const body = {
 
     setForm({
       category: question.category,
+      difficulty: question.difficulty,
       question: question.question,
       optionA: question.optionA,
       optionB: question.optionB,
       optionC: question.optionC,
       optionD: question.optionD,
       correctAnswer:
-  question.correctAnswer === question.optionA
-    ? 'A'
-    : question.correctAnswer === question.optionB
-      ? 'B'
-      : question.correctAnswer === question.optionC
-        ? 'C'
-        : question.correctAnswer === question.optionD
-          ? 'D'
-          : '',
+        question.correctAnswer === question.optionA
+          ? 'A'
+          : question.correctAnswer === question.optionB
+            ? 'B'
+            : question.correctAnswer === question.optionC
+              ? 'C'
+              : question.correctAnswer === question.optionD
+                ? 'D'
+                : '',
     });
 
     setFormMessage('');
@@ -332,9 +322,6 @@ const body = {
       console.error(error);
       setFormMessage('Greška kod brisanja pitanja. Provjeri admin prava.');
     }
-    finally {
-  setSaving(false);
-}
   }
 
   function logout() {
@@ -343,8 +330,9 @@ const body = {
     window.location.href = '/login';
   }
 
-  const totalCategories = new Set(questions.map((question) => question.category))
-    .size;
+  const totalCategories = new Set(
+    questions.map((question) => question.category),
+  ).size;
 
   return (
     <main className={`${shellClass} px-4 py-5 sm:px-6 lg:px-8`}>
@@ -372,7 +360,11 @@ const body = {
               </span>
             )}
 
-            <button type="button" onClick={logout} className={dangerButtonClass}>
+            <button
+              type="button"
+              onClick={logout}
+              className={dangerButtonClass}
+            >
               Odjava
             </button>
           </div>
@@ -435,7 +427,7 @@ const body = {
                     value={aiCategory}
                     onChange={(e) => setAiCategory(e.target.value)}
                   >
-                    {categories.map((category) => (
+                    {QUIZ_CATEGORIES.map((category) => (
                       <option key={category} value={category}>
                         {category}
                       </option>
@@ -518,6 +510,23 @@ const body = {
 
                 <label className="block">
                   <span className="mb-2 block text-sm font-bold text-[#B8C4D6]">
+                    Težina
+                  </span>
+                  <select
+                    className={inputClass}
+                    value={form.difficulty}
+                    onChange={(e) =>
+                      setForm({ ...form, difficulty: e.target.value })
+                    }
+                  >
+                    <option value="easy">Lako</option>
+                    <option value="medium">Srednje</option>
+                    <option value="hard">Teško</option>
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-sm font-bold text-[#B8C4D6]">
                     Pitanje
                   </span>
                   <input
@@ -567,16 +576,16 @@ const body = {
               </div>
 
               <button
-  type="submit"
-  disabled={saving}
-  className={`${successButtonClass} mt-6 w-full`}
->
-  {saving
-    ? 'Spremanje...'
-    : editingId
-      ? 'Spremi promjene'
-      : 'Dodaj pitanje'}
-</button>
+                type="submit"
+                disabled={saving}
+                className={`${successButtonClass} mt-6 w-full`}
+              >
+                {saving
+                  ? 'Spremanje...'
+                  : editingId
+                    ? 'Spremi promjene'
+                    : 'Dodaj pitanje'}
+              </button>
 
               {editingId && (
                 <button
@@ -631,9 +640,15 @@ const body = {
                   >
                     <div className="mb-3 flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                       <div>
-                        <span className="inline-flex rounded-full border border-[#778DA9]/20 bg-[#415A77]/20 px-3 py-1 text-xs font-black uppercase tracking-wider text-[#B8C4D6]">
-                          {q.category}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="inline-flex rounded-full border border-[#778DA9]/20 bg-[#415A77]/20 px-3 py-1 text-xs font-black uppercase tracking-wider text-[#B8C4D6]">
+                            {q.category}
+                          </span>
+
+                          <span className="inline-flex rounded-full border border-[#778DA9]/20 bg-[#0D1B2A]/60 px-3 py-1 text-xs font-black uppercase tracking-wider text-[#778DA9]">
+                            {DIFFICULTY_LABELS[q.difficulty] ?? q.difficulty}
+                          </span>
+                        </div>
 
                         <h3 className="mt-3 text-xl font-black leading-snug">
                           {q.question}

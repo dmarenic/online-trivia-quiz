@@ -4,8 +4,21 @@ import { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import Link from 'next/link';
 import Image from 'next/image';
+import {
+  cardClass,
+  dangerButtonClass,
+  primaryButtonClass,
+  shellClass,
+  successButtonClass,
+} from '@/src/lib/ui';
+
+import { apiFetch } from '@/src/lib/api';
+import { QUIZ_CATEGORIES } from '@/src/lib/categories';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+// Koliko odigranih partija po sobi ostaje zapisano u pregledniku.
+const MAX_STORED_GAMES = 20;
 // Socket je modul-singleton (jedna veza po tabu), a ne po-komponentni objekt:
 // React u razvoju montira komponente dvaput, pa bi veza unutar komponente
 // stvorila dvije sesije i dva igrača u sobi. autoConnect: false znači da se
@@ -13,10 +26,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL;
 const socket = io(API_URL || 'http://localhost:3000', {
   autoConnect: false,
   auth: {
-    token:
-      typeof window !== 'undefined'
-        ? localStorage.getItem('token')
-        : null,
+    token: typeof window !== 'undefined' ? localStorage.getItem('token') : null,
   },
 });
 
@@ -41,6 +51,7 @@ type Room = {
   selectedDifficulty?: string;
   questionCount?: number;
   timePerQuestion?: number;
+  maxPlayers?: number;
 };
 
 type Question = {
@@ -76,32 +87,8 @@ type Friend = {
   };
 };
 
-function getAuthHeaders() {
-  const token = localStorage.getItem('token');
-
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  };
-}
-
-const shellClass =
-  'min-h-screen bg-[radial-gradient(circle_at_50%_-10%,rgba(65,90,119,0.2),transparent_34%),linear-gradient(180deg,#0D1B2A_0%,#071523_100%)] text-[#E0E1DD]';
-
-const cardClass =
-  'rounded-[20px] border border-[#778DA9]/20 bg-[#1B263B]/88 shadow-[0_20px_70px_rgba(0,0,0,0.28)] backdrop-blur';
-
 const inputClass =
   'w-full rounded-2xl border border-[#778DA9]/20 bg-[#0D1B2A]/70 px-4 py-3 text-[#E0E1DD] outline-none transition placeholder:text-[#778DA9] focus:border-[#778DA9]/55 focus:ring-4 focus:ring-[#778DA9]/10 disabled:cursor-not-allowed disabled:opacity-50';
-
-const primaryButtonClass =
-  'rounded-2xl bg-[#415A77] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#4f6d8f] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
-
-const successButtonClass =
-  'rounded-2xl bg-[#388E3C] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#43A047] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
-
-const dangerButtonClass =
-  'rounded-2xl bg-[#C62828] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#D32F2F] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
 
 export default function RoomPage() {
   const [nickname, setNickname] = useState('');
@@ -129,21 +116,20 @@ export default function RoomPage() {
   const [invitingFriendId, setInvitingFriendId] = useState<string | null>(null);
   const [toast, setToast] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error'>('success');
-  
 
   const finishSoundPlayedRef = useRef(false);
   const initializedRef = useRef(false);
   // Zadnje vrijednosti za mount-only socket handlere (bez re-registracije).
   const roomRef = useRef<Room | null>(null);
   const timePerQuestionRef = useRef(15);
-function showToast(message: string, type: 'success' | 'error' = 'success') {
-  setToast(message);
-  setToastType(type);
+  function showToast(message: string, type: 'success' | 'error' = 'success') {
+    setToast(message);
+    setToastType(type);
 
-  setTimeout(() => {
-    setToast('');
-  }, 3000);
-}
+    setTimeout(() => {
+      setToast('');
+    }, 3000);
+  }
   const [answerResult, setAnswerResult] = useState<{
     isCorrect: boolean;
     correctAnswer: string;
@@ -178,16 +164,16 @@ function showToast(message: string, type: 'success' | 'error' = 'success') {
   }
 
   function changeDifficulty(difficulty: string) {
-  if (!room) return;
+    if (!room) return;
 
-  playSound('click');
-  setSelectedDifficulty(difficulty);
+    playSound('click');
+    setSelectedDifficulty(difficulty);
 
-  socket?.emit('set_difficulty', {
-    roomCode: room.code,
-    difficulty,
-  });
-}
+    socket?.emit('set_difficulty', {
+      roomCode: room.code,
+      difficulty,
+    });
+  }
 
   function saveCurrentRoom(roomData: Room) {
     localStorage.setItem('currentRoom', JSON.stringify(roomData));
@@ -212,12 +198,12 @@ function showToast(message: string, type: 'success' | 'error' = 'success') {
 
   useEffect(() => {
     socket.auth = {
-  token: localStorage.getItem('token'),
-};
+      token: localStorage.getItem('token'),
+    };
 
-if (!socket.connected) {
-  socket.connect();
-}
+    if (!socket.connected) {
+      socket.connect();
+    }
     const savedUser = localStorage.getItem('user');
     const savedNickname = localStorage.getItem('nickname');
     const savedRoom = localStorage.getItem('currentRoom');
@@ -229,26 +215,24 @@ if (!socket.connected) {
     let finalNickname = savedNickname || 'Guest';
 
     if (savedUser) {
-      const userFromStorage = JSON.parse(savedUser) as User;
+      // Oštećen zapis u localStorageu ne smije srušiti cijelu stranicu sobe.
+      let userFromStorage: User | null = null;
 
-      finalNickname = userFromStorage.username || 'Guest';
+      try {
+        userFromStorage = JSON.parse(savedUser) as User;
+      } catch {
+        localStorage.removeItem('user');
+      }
+
+      finalNickname = userFromStorage?.username || savedNickname || 'Guest';
 
       setUser(userFromStorage);
-      setNickname(userFromStorage.username || '');
+      setNickname(userFromStorage?.username || '');
 
       socket?.emit('join_user_channel');
 
-      fetch(`${API_URL}/users/me/friends`, {
-  headers: getAuthHeaders(),
-})
-  .then((res) => {
-    if (!res.ok) {
-      throw new Error('Greška kod dohvaćanja prijatelja.');
-    }
-
-    return res.json();
-  })
-        .then((data: { friends?: Friend[] }) => {
+      apiFetch<{ friends?: Friend[] }>('/users/me/friends')
+        .then((data) => {
           setFriends(Array.isArray(data.friends) ? data.friends : []);
         })
         .catch(() => setFriends([]));
@@ -466,9 +450,7 @@ if (!socket.connected) {
     );
 
     socket.on('game_finished', (data: { players: Player[]; room: Room }) => {
-      const sortedPlayers = [...data.players].sort(
-        (a, b) => b.score - a.score,
-      );
+      const sortedPlayers = [...data.players].sort((a, b) => b.score - a.score);
 
       localStorage.setItem('roomLeaderboard', JSON.stringify(sortedPlayers));
       saveCurrentRoom(data.room);
@@ -479,7 +461,15 @@ if (!socket.connected) {
 
         const historyKey = `roomGameHistory:${data.room.code}`;
         const savedHistory = localStorage.getItem(historyKey);
-        const gameHistory = savedHistory ? JSON.parse(savedHistory) : [];
+
+        let gameHistory: unknown[] = [];
+
+        try {
+          const parsed: unknown = savedHistory ? JSON.parse(savedHistory) : [];
+          gameHistory = Array.isArray(parsed) ? parsed : [];
+        } catch {
+          gameHistory = [];
+        }
 
         gameHistory.push({
           gameNumber: gameHistory.length + 1,
@@ -488,7 +478,12 @@ if (!socket.connected) {
           players: sortedPlayers,
         });
 
-        localStorage.setItem(historyKey, JSON.stringify(gameHistory));
+        // Povijest se čuva samo u pregledniku, pa je ograničavamo na zadnjih
+        // MAX_STORED_GAMES partija da localStorage ne raste bez granice.
+        localStorage.setItem(
+          historyKey,
+          JSON.stringify(gameHistory.slice(-MAX_STORED_GAMES)),
+        );
       }
 
       setQuestion(null);
@@ -632,64 +627,60 @@ if (!socket.connected) {
   }
 
   function sendMessage() {
-  const trimmedMessage = chatInput.trim();
+    const trimmedMessage = chatInput.trim();
 
-  if (!room || !trimmedMessage) return;
+    if (!room || !trimmedMessage) return;
 
-  if (trimmedMessage.length > 300) {
-    setErrorMessage('Poruka može imati najviše 300 znakova.');
-    return;
-  }
-
-  playSound('click');
-
-  socket?.emit('send_message', {
-    roomCode: room.code,
-    nickname,
-    message: trimmedMessage,
-  });
-
-  setChatInput('');
-}
-
-  async function inviteFriend(friendId: string) {
-  if (!user || !room) return;
-  if (invitingFriendId) return;
-
-  setInvitingFriendId(friendId);
-
-  try {
-    playSound('click');
-
-    const res = await fetch(`${API_URL}/users/invite-room`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        toUserId: friendId,
-        roomCode: room.code,
-      }),
-    });
-
-    if (!res.ok) {
-      showToast('Pozivnica nije poslana. Pokušaj ponovno.', 'error');
-
+    if (trimmedMessage.length > 300) {
+      setErrorMessage('Poruka može imati najviše 300 znakova.');
       return;
     }
 
-    showToast('Pozivnica je uspješno poslana.', 'success');
-  } catch (error) {
-  console.error(error);
-  showToast(
-    'Došlo je do pogreške prilikom slanja pozivnice.',
-    'error'
-  );
-} finally {
-    setInvitingFriendId(null);
+    playSound('click');
+
+    socket?.emit('send_message', {
+      roomCode: room.code,
+      nickname,
+      message: trimmedMessage,
+    });
+
+    setChatInput('');
   }
-}
+
+  async function inviteFriend(friendId: string) {
+    if (!user || !room) return;
+    if (invitingFriendId) return;
+
+    setInvitingFriendId(friendId);
+
+    try {
+      playSound('click');
+
+      await apiFetch('/users/invite-room', {
+        method: 'POST',
+        body: JSON.stringify({
+          toUserId: friendId,
+          roomCode: room.code,
+        }),
+      });
+
+      showToast('Pozivnica je uspješno poslana.', 'success');
+    } catch (error) {
+      console.error(error);
+      showToast('Došlo je do pogreške prilikom slanja pozivnice.', 'error');
+    } finally {
+      setInvitingFriendId(null);
+    }
+  }
 
   function leaveRoom() {
     playSound('leave-room');
+
+    // Server mora znati da je izlazak namjeran - bez ovoga bi igrač ostao u
+    // popisu sobe kao odspojen i dalje bi se brojao u totalPlayers.
+    if (room) {
+      socket?.emit('leave_room', { roomCode: room.code });
+    }
 
     localStorage.removeItem('currentRoom');
 
@@ -709,7 +700,9 @@ if (!socket.connected) {
 
   if (gameFinished) {
     return (
-      <main className={`${shellClass} flex items-center justify-center p-4 sm:p-6`}>
+      <main
+        className={`${shellClass} flex items-center justify-center p-4 sm:p-6`}
+      >
         <div className={`${cardClass} w-full max-w-3xl p-5 sm:p-8`}>
           <div className="mb-8 text-center">
             <p className="mb-3 text-sm font-bold uppercase tracking-[0.24em] text-[#778DA9]">
@@ -803,7 +796,9 @@ if (!socket.connected) {
     );
 
     return (
-      <main className={`${shellClass} flex items-center justify-center p-4 sm:p-6`}>
+      <main
+        className={`${shellClass} flex items-center justify-center p-4 sm:p-6`}
+      >
         <div className="w-full max-w-5xl">
           {errorMessage && (
             <div className="mb-5 rounded-2xl border border-[#C62828]/30 bg-[#C62828]/15 p-4 text-center font-bold text-[#ffb4b4]">
@@ -875,7 +870,7 @@ if (!socket.connected) {
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             {question.options.map((option, index) => (
               <button
-                key={option}
+                key={`${questionNumber}-${index}`}
                 onClick={() => submitAnswer(option)}
                 disabled={hasAnswered || questionEnded || submitting}
                 className="group flex items-center gap-4 rounded-[20px] border border-[#778DA9]/20 bg-[#1B263B]/88 p-5 text-left font-black text-[#E0E1DD] shadow-[0_14px_45px_rgba(0,0,0,0.18)] transition hover:-translate-y-0.5 hover:border-[#778DA9]/45 hover:bg-[#243551] disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0"
@@ -1018,7 +1013,7 @@ if (!socket.connected) {
             <section className={`${cardClass} p-5 sm:p-6`}>
               <div className="mb-5 flex items-center justify-between gap-4">
                 <h2 className="text-2xl font-black">
-                  Igrači ({room.players.length}/8)
+                  Igrači ({room.players.length}/{room.maxPlayers ?? '-'})
                 </h2>
                 <span className="rounded-full bg-[#415A77]/25 px-3 py-1 text-xs font-black uppercase tracking-wider text-[#B8C4D6]">
                   {room.players.filter((player) => player.isReady).length} ready
@@ -1094,25 +1089,24 @@ if (!socket.connected) {
                   </div>
                 ))}
               </div>
-              
-                {!isHost && (
-              <button
-                onClick={toggleReady}
-  className={`mt-6 w-full rounded-2xl px-5 py-3 font-bold text-white transition ${
-    currentPlayer?.isReady
-      ? 'bg-[#C62828] hover:bg-[#b71c1c]'
-      : 'bg-[#388E3C] hover:bg-[#2e7d32]'
-  }`}
-              >
-                {currentPlayer?.isReady ? 'Makni ready' : 'Ready'}
-              </button>)}
+
+              {!isHost && (
+                <button
+                  onClick={toggleReady}
+                  className={`mt-6 w-full rounded-2xl px-5 py-3 font-bold text-white transition ${
+                    currentPlayer?.isReady
+                      ? 'bg-[#C62828] hover:bg-[#b71c1c]'
+                      : 'bg-[#388E3C] hover:bg-[#2e7d32]'
+                  }`}
+                >
+                  {currentPlayer?.isReady ? 'Makni ready' : 'Ready'}
+                </button>
+              )}
             </section>
 
             {friends.length > 0 && (
               <section className={`${cardClass} p-5 sm:p-6`}>
-                <h2 className="mb-4 text-2xl font-black">
-                  Pozovi prijatelje
-                </h2>
+                <h2 className="mb-4 text-2xl font-black">Pozovi prijatelje</h2>
 
                 <div className="grid gap-3">
                   {friends.map((friend) => {
@@ -1120,18 +1114,18 @@ if (!socket.connected) {
 
                     return (
                       <button
-  key={friendData.id}
-  onClick={() => inviteFriend(friendData.id)}
-  disabled={invitingFriendId === friendData.id}
-  className="rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/55 p-4 text-left transition hover:-translate-y-0.5 hover:border-[#778DA9]/35 hover:bg-[#0D1B2A]/75 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
->
-  <p className="font-black">{friendData.username}</p>
-  <p className="text-sm text-[#778DA9]">
-    {invitingFriendId === friendData.id
-      ? 'Šaljem pozivnicu...'
-      : 'Pošalji pozivnicu'}
-  </p>
-</button>
+                        key={friendData.id}
+                        onClick={() => inviteFriend(friendData.id)}
+                        disabled={invitingFriendId === friendData.id}
+                        className="rounded-2xl border border-[#778DA9]/15 bg-[#0D1B2A]/55 p-4 text-left transition hover:-translate-y-0.5 hover:border-[#778DA9]/35 hover:bg-[#0D1B2A]/75 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                      >
+                        <p className="font-black">{friendData.username}</p>
+                        <p className="text-sm text-[#778DA9]">
+                          {invitingFriendId === friendData.id
+                            ? 'Šaljem pozivnicu...'
+                            : 'Pošalji pozivnicu'}
+                        </p>
+                      </button>
                     );
                   })}
                 </div>
@@ -1156,25 +1150,11 @@ if (!socket.connected) {
                     className={inputClass}
                   >
                     <option value="All">Sve kategorije</option>
-                    <option value="Sport">Sport</option>
-                    <option value="Geografija">Geografija</option>
-                    <option value="Računarstvo">Računarstvo</option>
-                    <option value="Povijest">Povijest</option>
-                    <option value="Znanost">Znanost</option>
-                    <option value="Književnost">Književnost</option>
-                    <option value="Umjetnost">Umjetnost</option>
-                    <option value="Glazba">Glazba</option>
-                    <option value="Videoigre">Videoigre</option>
-                    <option value="Trendovi i aktualnosti">
-                      Trendovi i aktualnosti
-                    </option>
-                    <option value="Poslovanje i brendovi">
-                      Poslovanje i brendovi
-                    </option>
-                    <option value="Životinje">Životinje</option>
-                    <option value="Ljudsko tijelo i zdravlje">
-                      Ljudsko tijelo i zdravlje
-                    </option>
+                    {QUIZ_CATEGORIES.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -1186,7 +1166,7 @@ if (!socket.connected) {
                   <input
                     type="number"
                     min={1}
-                    max={30}
+                    max={50}
                     value={questionCount}
                     onChange={(e) => setQuestionCount(Number(e.target.value))}
                     onBlur={syncSettings}
@@ -1203,11 +1183,9 @@ if (!socket.connected) {
                   <input
                     type="number"
                     min={5}
-                    max={60}
+                    max={120}
                     value={timePerQuestion}
-                    onChange={(e) =>
-                      setTimePerQuestion(Number(e.target.value))
-                    }
+                    onChange={(e) => setTimePerQuestion(Number(e.target.value))}
                     onBlur={syncSettings}
                     disabled={!isHost || room.started}
                     className={inputClass}
@@ -1215,22 +1193,22 @@ if (!socket.connected) {
                 </div>
 
                 <div>
-  <label className="mb-2 block text-sm font-bold text-[#B8C4D6]">
-    Težina
-  </label>
+                  <label className="mb-2 block text-sm font-bold text-[#B8C4D6]">
+                    Težina
+                  </label>
 
-  <select
-    value={selectedDifficulty}
-    onChange={(e) => changeDifficulty(e.target.value)}
-    disabled={!isHost || room.started}
-    className={inputClass}
-  >
-    <option value="All">Sve težine</option>
-    <option value="easy">Easy</option>
-    <option value="medium">Medium</option>
-    <option value="hard">Hard</option>
-  </select>
-</div>
+                  <select
+                    value={selectedDifficulty}
+                    onChange={(e) => changeDifficulty(e.target.value)}
+                    disabled={!isHost || room.started}
+                    className={inputClass}
+                  >
+                    <option value="All">Sve težine</option>
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="hard">Hard</option>
+                  </select>
+                </div>
               </div>
 
               {isHost && (
@@ -1294,16 +1272,16 @@ if (!socket.connected) {
         </div>
       </div>
       {toast && (
-  <div
-    className={`fixed bottom-5 right-5 z-50 rounded-2xl border px-5 py-3 font-bold shadow-xl backdrop-blur ${
-      toastType === 'success'
-        ? 'border-[#388E3C]/30 bg-[#388E3C]/15 text-[#75d27a]'
-        : 'border-[#C62828]/30 bg-[#C62828]/15 text-[#ffb4b4]'
-    }`}
-  >
-    {toast}
-  </div>
-)}
+        <div
+          className={`fixed bottom-5 right-5 z-50 rounded-2xl border px-5 py-3 font-bold shadow-xl backdrop-blur ${
+            toastType === 'success'
+              ? 'border-[#388E3C]/30 bg-[#388E3C]/15 text-[#75d27a]'
+              : 'border-[#C62828]/30 bg-[#C62828]/15 text-[#ffb4b4]'
+          }`}
+        >
+          {toast}
+        </div>
+      )}
     </main>
   );
 }

@@ -16,13 +16,23 @@ jest.mock('crypto', () => {
 // Pomoćnici za testove: lažni socket klijent i soba u stanju "igra u tijeku".
 // Sve je in-memory, kao i u produkcijskom gatewayu — baza se nigdje ne dira.
 
-function makeClient(id: string) {
+// Metode koje testovi promatraju zamjenjujemo jest mockovima i to izražavamo
+// u tipu (Omit + presnimavanje), da assertion nad njima ne barata metodom
+// odvojenom od objekta nego običnim mock objektom.
+type MockSocket = Omit<Socket, 'emit' | 'join' | 'leave'> & {
+  emit: jest.Mock;
+  join: jest.Mock;
+  leave: jest.Mock;
+};
+
+function makeClient(id: string): MockSocket {
   return {
     id,
     emit: jest.fn(),
     join: jest.fn(),
+    leave: jest.fn(),
     handshake: { auth: {} },
-  } as unknown as Socket;
+  } as unknown as MockSocket;
 }
 
 function makePlayer(id: string, nickname: string) {
@@ -156,14 +166,14 @@ describe('GameGateway', () => {
 
   describe('submit_answer — tok odgovaranja na pitanje', () => {
     const NOW = 1_000_000_000;
-    let serverEmit: jest.Mock;
+    let serverEmit: jest.Mock<void, [string, unknown]>;
 
     beforeEach(() => {
       // Fiksiramo "sada" da bodovi budu deterministični (bez utrke s pravim satom).
       jest.spyOn(Date, 'now').mockReturnValue(NOW);
 
       // Lažni Socket.IO server: hvatamo broadcast emitove prema sobi.
-      serverEmit = jest.fn();
+      serverEmit = jest.fn<void, [string, unknown]>();
       gateway['server'] = {
         to: jest.fn(() => ({ emit: serverEmit })),
       } as never;
@@ -235,7 +245,7 @@ describe('GameGateway', () => {
       // Assert: bodovi nepromijenjeni, answer_result poslan samo jednom
       const player = room.players.find((p) => p.id === 'gost-socket')!;
       expect(player.score).toBe(scoreAfterFirst);
-      const answerResults = (client.emit as jest.Mock).mock.calls.filter(
+      const answerResults = client.emit.mock.calls.filter(
         ([event]) => event === 'answer_result',
       );
       expect(answerResults).toHaveLength(1);
@@ -273,10 +283,10 @@ describe('GameGateway', () => {
   });
 
   describe('autorizacija host-akcija — non-host mora biti odbijen', () => {
-    let serverEmit: jest.Mock;
+    let serverEmit: jest.Mock<void, [string, unknown]>;
 
     beforeEach(() => {
-      serverEmit = jest.fn();
+      serverEmit = jest.fn<void, [string, unknown]>();
       gateway['server'] = {
         to: jest.fn(() => ({ emit: serverEmit })),
       } as never;
@@ -353,10 +363,10 @@ describe('GameGateway', () => {
   });
 
   describe('regresija BUG-1 — javni payload sobe ne smije curiti odgovore', () => {
-    let serverEmit: jest.Mock;
+    let serverEmit: jest.Mock<void, [string, unknown]>;
 
     beforeEach(() => {
-      serverEmit = jest.fn();
+      serverEmit = jest.fn<void, [string, unknown]>();
       gateway['server'] = {
         to: jest.fn(() => ({ emit: serverEmit })),
       } as never;
@@ -431,6 +441,7 @@ describe('GameGateway', () => {
           'currentQuestionIndex',
           'hostId',
           'hostUserId',
+          'maxPlayers',
           'players',
           'questionCount',
           'selectedCategory',
@@ -474,10 +485,16 @@ describe('GameGateway', () => {
     it('kod koji već postoji u rooms mapi se regenerira (nema kolizije / pregazene sobe)', () => {
       // Arrange: soba s kodom 'AAAAAA' već postoji, a mockani crypto.randomInt
       // prvo "izvuče" baš AAAAAA (indeksi 0), pa u drugom pokušaju BBBBBB (indeksi 1).
-      gateway['rooms'].set('AAAAAA', makeActiveRoom('AAAAAA', 'host', ['host']));
+      gateway['rooms'].set(
+        'AAAAAA',
+        makeActiveRoom('AAAAAA', 'host', ['host']),
+      );
 
       const randomIntMock = crypto.randomInt as unknown as jest.Mock;
-      const plannedIndices = [...Array(6).fill(0), ...Array(6).fill(1)];
+      const plannedIndices = [
+        ...Array<number>(6).fill(0),
+        ...Array<number>(6).fill(1),
+      ];
       plannedIndices.forEach((index) => {
         randomIntMock.mockReturnValueOnce(index);
       });

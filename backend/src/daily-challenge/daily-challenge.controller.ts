@@ -2,21 +2,69 @@ import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/auth.types';
+import { QUIZ_CATEGORIES } from '../questions/categories';
 import { SubmitDailyDto } from './dto/submit-daily.dto';
 
-const DAILY_CATEGORIES = ["Sport",
-  "Geografija",
-  "Računarstvo",
-  "Povijest",
-  "Znanost",
-  "Književnost",
-  "Umjetnost",
-  "Glazba",
-  "Videoigre",
-  "Trendovi i aktualnosti",
-  "Poslovanje i brendovi",
-  "Životinje",
-  "Ljudsko tijelo i zdravlje"];
+// Cijeli daily modul računa "danas" kao UTC kalendarski dan. To je definicija
+// koju već nameće baza: DailyChallenge.date je unique string "YYYY-MM-DD"
+// izveden iz toISOString(), pa i dnevni leaderboard mora koristiti istu granicu
+// dana — inače bi na poslužitelju izvan UTC-a prikazivao rezultate iz krivog
+// dana u odnosu na izazov koji se tog trenutka igra.
+export function getTodayKey() {
+  return new Date().toISOString().split('T')[0];
+}
+
+export function getTodayStart() {
+  return new Date(`${getTodayKey()}T00:00:00.000Z`);
+}
+
+// Deterministički generator pseudoslučajnih brojeva (mulberry32). Za isto
+// sjeme uvijek daje isti niz vrijednosti, za razliku od Math.random().
+function createSeededRandom(seed: number) {
+  let state = seed;
+
+  return () => {
+    state = (state + 0x6d2b79f5) | 0;
+
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Datum "YYYY-MM-DD" pretvara u cjelobrojno sjeme (varijanta djb2/Java hasha).
+function getDateSeed(date: string) {
+  let hash = 0;
+
+  for (let i = 0; i < date.length; i++) {
+    hash = (Math.imul(hash, 31) + date.charCodeAt(i)) | 0;
+  }
+
+  return hash >>> 0;
+}
+
+// Izbor pitanja za dnevni izazov mora biti isti za sve igrače i kroz cijeli
+// dan, ali različit iz dana u dan. Zato se ne koristi Math.random (svaki bi
+// zahtjev dao drugi set) niti puko `take` bez sortiranja (uvijek isti set):
+// popis se sortira stabilno po id-u, pa promiješa Fisher-Yatesom čiji je
+// izvor slučajnosti izveden isključivo iz datuma izazova.
+function pickDailyQuestions<T extends { id: string }>(
+  questions: T[],
+  date: string,
+  count: number,
+) {
+  const ordered = [...questions].sort((a, b) => a.id.localeCompare(b.id));
+  const random = createSeededRandom(getDateSeed(date));
+
+  for (let i = ordered.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [ordered[i], ordered[j]] = [ordered[j], ordered[i]];
+  }
+
+  return ordered.slice(0, count);
+}
 
 @Controller('daily-challenge')
 export class DailyChallengeController {
@@ -24,8 +72,7 @@ export class DailyChallengeController {
 
   @Get('leaderboard')
   async getDailyLeaderboard() {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayStart();
 
     return this.prisma.gameResult.findMany({
       where: {
@@ -50,48 +97,57 @@ export class DailyChallengeController {
   }
 
   @Get()
-async getTodayChallenge() {
-  const today = new Date().toISOString().split('T')[0];
+  async getTodayChallenge() {
+    const today = getTodayKey();
 
-  let challenge = await this.prisma.dailyChallenge.findUnique({
-    where: {
-      date: today,
-    },
-  });
-
-  if (!challenge) {
-    // Rotacija kategorija po danima
-    const startDate = new Date('2025-01-01');
-    const currentDate = new Date(today);
-
-    const daysPassed = Math.floor(
-      (currentDate.getTime() - startDate.getTime()) /
-        (1000 * 60 * 60 * 24),
-    );
-
-    const category =
-      DAILY_CATEGORIES[daysPassed % DAILY_CATEGORIES.length];
-
-    challenge = await this.prisma.dailyChallenge.create({
-      data: {
-        title: `Daily ${category} Challenge`,
-        description: `Odgovori na 5 pitanja iz kategorije ${category}.`,
-        targetScore: 3000,
-        category,
-        questionCount: 5,
+    let challenge = await this.prisma.dailyChallenge.findUnique({
+      where: {
         date: today,
       },
     });
-  }
 
-  return challenge;
-}
+    if (!challenge) {
+      // Rotacija kategorija po danima: broj dana od fiksne referentne točke
+      // modulo broj kategorija. Zbog fiksne epohe je determinističan — isti
+      // datum uvijek daje istu kategoriju, neovisno o tome kada je izazov prvi
+      // put zatražen ili je li server u međuvremenu restartan.
+      const startDate = new Date('2025-01-01');
+      const currentDate = new Date(today);
+
+      const daysPassed = Math.floor(
+        (currentDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
+      );
+
+      const category = QUIZ_CATEGORIES[daysPassed % QUIZ_CATEGORIES.length];
+
+      // upsert umjesto create: dva paralelna zahtjeva za isti datum oba prođu
+      // findUnique provjeru iznad, pa bi drugom create pao na unique ograničenju
+      // DailyChallenge.date i vratio HTTP 500. Uz upsert oba dobiju isti izazov,
+      // a za datum i dalje postoji točno jedan zapis.
+      challenge = await this.prisma.dailyChallenge.upsert({
+        where: {
+          date: today,
+        },
+        update: {},
+        create: {
+          title: `Daily ${category} Challenge`,
+          description: `Odgovori na 5 pitanja iz kategorije ${category}.`,
+          targetScore: 3000,
+          category,
+          questionCount: 5,
+          date: today,
+        },
+      });
+    }
+
+    return challenge;
+  }
 
   @UseGuards(JwtAuthGuard)
   @Get('status/me')
-  async getDailyStatus(@CurrentUser() user: any) {
+  async getDailyStatus(@CurrentUser() user: AuthenticatedUser) {
     const userId = user.id;
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayKey();
 
     const challenge = await this.prisma.dailyChallenge.findUnique({
       where: {
@@ -131,11 +187,10 @@ async getTodayChallenge() {
       return [];
     }
 
-    const questions = await this.prisma.question.findMany({
+    const categoryQuestions = await this.prisma.question.findMany({
       where: {
         category: challenge.category,
       },
-      take: challenge.questionCount,
       select: {
         id: true,
         category: true,
@@ -146,6 +201,12 @@ async getTodayChallenge() {
         optionD: true,
       },
     });
+
+    const questions = pickDailyQuestions(
+      categoryQuestions,
+      challenge.date,
+      challenge.questionCount,
+    );
 
     return questions.map((question) => ({
       id: question.id,
@@ -163,11 +224,11 @@ async getTodayChallenge() {
   @UseGuards(JwtAuthGuard)
   @Post('submit')
   async submitDailyResult(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Body() body: SubmitDailyDto,
   ) {
     const userId = user.id;
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayKey();
 
     const challenge = await this.prisma.dailyChallenge.findUnique({
       where: {

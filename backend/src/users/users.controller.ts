@@ -15,12 +15,17 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/auth.types';
 import {
   AddFriendDto,
   InviteRoomDto,
   UpdateAvatarDto,
   UpdateUsernameDto,
 } from './dto/users.dto';
+
+// Pozivnica u sobu vrijedi kratko jer soba živi samo u memoriji gatewaya —
+// zastarjela pozivnica vodila bi u sobu koje više nema.
+const ROOM_INVITE_TTL_MS = 30000;
 
 // Točnost jednog meča u rasponu 0–100%, zaokružena na 1 decimalu.
 // Robusno na prljave podatke: correctAnswers se ograničava na [0, totalQuestions],
@@ -61,7 +66,7 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard)
   @Get('me/match-history')
-  async getMyMatchHistory(@CurrentUser() user: any) {
+  async getMyMatchHistory(@CurrentUser() user: AuthenticatedUser) {
     const matches = await this.prisma.gameResult.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
@@ -84,22 +89,8 @@ export class UsersController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Get('me/results')
-  async getMyResults(@CurrentUser() user: any) {
-    const results = await this.prisma.gameResult.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-    });
-
-    return {
-      results,
-    };
-  }
-
-  @UseGuards(JwtAuthGuard)
   @Get('me/stats')
-  async getMyStats(@CurrentUser() user: any) {
+  async getMyStats(@CurrentUser() user: AuthenticatedUser) {
     const dbUser = await this.prisma.user.findUnique({
       where: { id: user.id },
       include: {
@@ -137,7 +128,7 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   @Patch('me/avatar')
   async updateAvatar(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Body()
     body: UpdateAvatarDto,
   ) {
@@ -159,7 +150,7 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   @Patch('me/username')
   async updateUsername(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Body()
     body: UpdateUsernameDto,
   ) {
@@ -192,7 +183,10 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard)
   @Post('invite-room')
-  async inviteToRoom(@CurrentUser() user: any, @Body() body: InviteRoomDto) {
+  async inviteToRoom(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: InviteRoomDto,
+  ) {
     if (body.toUserId === user.id) {
       throw new ForbiddenException('Ne možeš poslati pozivnicu sam sebi.');
     }
@@ -209,8 +203,11 @@ export class UsersController {
       );
     }
 
+    // Isto pravilo kao u socket verziji (send_room_invite u game.gateway.ts):
+    // poslan, ali još neprihvaćen zahtjev NE daje pravo slanja pozivnice.
     const friendship = await this.prisma.friend.findFirst({
       where: {
+        status: 'accepted',
         OR: [
           {
             senderId: user.id,
@@ -238,7 +235,7 @@ export class UsersController {
           },
           {
             createdAt: {
-              lt: new Date(Date.now() - 30000),
+              lt: new Date(Date.now() - ROOM_INVITE_TTL_MS),
             },
           },
         ],
@@ -257,7 +254,7 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   @Delete('room-invites/:inviteId')
   async deleteRoomInvite(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Param('inviteId') inviteId: string,
   ) {
     const invite = await this.prisma.roomInvite.findUnique({
@@ -275,8 +272,8 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard)
   @Get('me/room-invites')
-  async getRoomInvites(@CurrentUser() user: any) {
-    const expiresAt = new Date(Date.now() - 30000);
+  async getRoomInvites(@CurrentUser() user: AuthenticatedUser) {
+    const expiresAt = new Date(Date.now() - ROOM_INVITE_TTL_MS);
 
     await this.prisma.roomInvite.deleteMany({
       where: {
@@ -307,7 +304,10 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard)
   @Post('me/friends')
-  async addFriend(@CurrentUser() user: any, @Body() body: AddFriendDto) {
+  async addFriend(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: AddFriendDto,
+  ) {
     const friend = await this.prisma.user.findUnique({
       where: { username: body.username },
     });
@@ -353,7 +353,7 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard)
   @Get('me/friends')
-  async getFriends(@CurrentUser() user: any) {
+  async getFriends(@CurrentUser() user: AuthenticatedUser) {
     const friends = await this.prisma.friend.findMany({
       where: {
         status: 'accepted',
@@ -409,7 +409,7 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   @Patch('me/friends/:requestId/accept')
   async acceptFriendRequest(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Param('requestId') requestId: string,
   ) {
     const request = await this.prisma.friend.findUnique({
@@ -429,7 +429,7 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   @Delete('me/friends/:requestId/reject')
   async rejectFriendRequest(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Param('requestId') requestId: string,
   ) {
     const request = await this.prisma.friend.findUnique({

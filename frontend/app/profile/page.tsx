@@ -12,6 +12,15 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { apiFetch } from '@/src/lib/api';
+import { USERNAME_MAX_LENGTH, USERNAME_MIN_LENGTH } from '@/src/lib/validation';
+import {
+  cardClass,
+  dangerButtonClass,
+  inputClass,
+  shellClass,
+  successButtonClass,
+} from '@/src/lib/ui';
 
 type User = {
   id: string;
@@ -38,13 +47,6 @@ type MatchHistoryItem = {
   createdAt: string;
 };
 
-type GameResult = {
-  id: string;
-  nickname: string;
-  score: number;
-  createdAt: string;
-};
-
 type RoomInvite = {
   id: string;
   roomCode: string;
@@ -53,37 +55,9 @@ type RoomInvite = {
   };
 };
 
-function getAuthHeaders() {
-  const token = localStorage.getItem('token');
-
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  };
-}
-
-const shellClass =
-  'min-h-screen bg-[radial-gradient(circle_at_50%_-10%,rgba(65,90,119,0.2),transparent_34%),linear-gradient(180deg,#0D1B2A_0%,#071523_100%)] text-[#E0E1DD]';
-
-const cardClass =
-  'rounded-[20px] border border-[#778DA9]/20 bg-[#1B263B]/88 shadow-[0_20px_70px_rgba(0,0,0,0.28)] backdrop-blur';
-
-const inputClass =
-  'w-full rounded-2xl border border-[#778DA9]/20 bg-[#0D1B2A]/70 px-4 py-3 text-[#E0E1DD] outline-none transition placeholder:text-[#778DA9] focus:border-[#778DA9]/55 focus:ring-4 focus:ring-[#778DA9]/10';
-
-const primaryButtonClass =
-  'rounded-2xl bg-[#415A77] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#4f6d8f] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
-
-const successButtonClass =
-  'rounded-2xl bg-[#388E3C] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#43A047] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
-
-const dangerButtonClass =
-  'rounded-2xl bg-[#C62828] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#D32F2F] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
-
 export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
-  const [results, setResults] = useState<GameResult[]>([]);
-  const [dailyResults, setDailyResults] = useState<GameResult[]>([]);
+  const [dailyResults, setDailyResults] = useState<MatchHistoryItem[]>([]);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [matchHistory, setMatchHistory] = useState<MatchHistoryItem[]>([]);
   const [roomInvites, setRoomInvites] = useState<RoomInvite[]>([]);
@@ -100,11 +74,11 @@ export default function ProfilePage() {
       const token = localStorage.getItem('token');
 
       if (!savedUser || !token) {
-  localStorage.removeItem('user');
-  localStorage.removeItem('token');
-  window.location.replace('/login');
-  return;
-}
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        window.location.replace('/login');
+        return;
+      }
 
       const parsedUser: User = JSON.parse(savedUser);
 
@@ -112,66 +86,31 @@ export default function ProfilePage() {
       setAvatarInput(parsedUser.avatar || parsedUser.username);
 
       try {
-        const statsRes = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/users/me/stats`,
-          { headers: getAuthHeaders() },
-        );
-        if (!statsRes.ok) {
-  throw new Error('Greška kod učitavanja statistike.');
-}
-        const statsData = await statsRes.json();
+        const statsData = await apiFetch<UserStats>('/users/me/stats');
         setStats(statsData);
       } catch (err) {
         console.error('Greška kod statistike:', err);
       }
 
       try {
-        const historyRes = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/users/me/match-history`,
-          { headers: getAuthHeaders() },
+        // Jedan izvor za povijest: graf, popis mečeva i daily lista sve se
+        // izvode iz istog odgovora umjesto da se dohvaća drugi, gotovo isti
+        // endpoint.
+        const historyData = await apiFetch<MatchHistoryItem[]>(
+          '/users/me/match-history',
         );
-        if (!historyRes.ok) {
-  throw new Error('Greška kod učitavanja povijesti mečeva.');
-}
-        const historyData = await historyRes.json();
-        setMatchHistory(Array.isArray(historyData) ? historyData : []);
+        const history = Array.isArray(historyData) ? historyData : [];
+
+        setMatchHistory(history);
+        setDailyResults(history.filter((match) => match.mode === 'daily'));
       } catch (err) {
         console.error('Greška kod match history:', err);
       }
 
       try {
-        const resultsRes = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/users/me/results`,
-          { headers: getAuthHeaders() },
+        const invitesData = await apiFetch<RoomInvite[]>(
+          '/users/me/room-invites',
         );
-        if (!resultsRes.ok) {
-  throw new Error('Greška kod učitavanja rezultata.');
-}
-        const resultsData = await resultsRes.json();
-
-        setResults(resultsData.results || []);
-
-        setDailyResults(
-          Array.isArray(resultsData.results)
-            ? resultsData.results.filter(
-                (result: GameResult & { mode?: string }) =>
-                  result.mode === 'daily',
-              )
-            : [],
-        );
-      } catch (err) {
-        console.error('Greška kod rezultata:', err);
-      }
-
-      try {
-        const invitesRes = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/users/me/room-invites`,
-          { headers: getAuthHeaders() },
-        );
-        if (!invitesRes.ok) {
-  throw new Error('Greška kod učitavanja pozivnica.');
-}
-        const invitesData = await invitesRes.json();
         setRoomInvites(Array.isArray(invitesData) ? invitesData : []);
       } catch (err) {
         console.error('Greška kod pozivnica:', err);
@@ -182,46 +121,35 @@ export default function ProfilePage() {
   }, []);
 
   function showToast(message: string, type: 'success' | 'error' = 'success') {
-  setToast(message);
-  setToastType(type);
+    setToast(message);
+    setToastType(type);
 
-  setTimeout(() => {
-    setToast('');
-  }, 3000);
-}
+    setTimeout(() => {
+      setToast('');
+    }, 3000);
+  }
 
   async function updateAvatar() {
     if (!user || !avatarInput.trim()) return;
 
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/users/me/avatar`,
-      {
+    try {
+      const updatedUser = await apiFetch<User>('/users/me/avatar', {
         method: 'PATCH',
-        headers: getAuthHeaders(),
         body: JSON.stringify({
           avatar: avatarInput,
         }),
-      },
-    );
+      });
 
-    if (!res.ok) {
+      const newUser = {
+        ...user,
+        avatar: updatedUser.avatar,
+      };
+
+      setUser(newUser);
+      localStorage.setItem('user', JSON.stringify(newUser));
+    } catch {
       showToast('Avatar nije spremljen. Pokušaj ponovno.', 'error');
-
-setTimeout(() => {
-  setToast('');
-}, 3000);
-      return;
     }
-
-    const updatedUser = await res.json();
-
-    const newUser = {
-      ...user,
-      avatar: updatedUser.avatar,
-    };
-
-    setUser(newUser);
-    localStorage.setItem('user', JSON.stringify(newUser));
   }
 
   function startEditingUsername() {
@@ -235,8 +163,14 @@ setTimeout(() => {
 
     const trimmed = usernameInput.trim();
 
-    if (trimmed.length < 1 || trimmed.length > 30) {
-      showToast('Nadimak mora imati 1–30 znakova.', 'error');
+    if (
+      trimmed.length < USERNAME_MIN_LENGTH ||
+      trimmed.length > USERNAME_MAX_LENGTH
+    ) {
+      showToast(
+        `Nadimak mora imati ${USERNAME_MIN_LENGTH}–${USERNAME_MAX_LENGTH} znakova.`,
+        'error',
+      );
       return;
     }
 
@@ -248,11 +182,16 @@ setTimeout(() => {
     setSavingUsername(true);
 
     try {
+      // Jedini poziv koji ne ide kroz apiFetch: treba razlikovati 409 (nadimak
+      // zauzet) od ostalih grešaka, a apiFetch sve pretvara u istu iznimku.
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/users/me/username`,
         {
           method: 'PATCH',
-          headers: getAuthHeaders(),
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
           body: JSON.stringify({ username: trimmed }),
         },
       );
@@ -290,38 +229,30 @@ setTimeout(() => {
   }
 
   async function deleteInvite(inviteId: string) {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/users/room-invites/${inviteId}`,
-      {
+    try {
+      await apiFetch(`/users/room-invites/${inviteId}`, {
         method: 'DELETE',
-        headers: getAuthHeaders(),
-      },
-    );
+      });
 
-    if (!res.ok) {
+      setRoomInvites((prev) => prev.filter((invite) => invite.id !== inviteId));
+    } catch {
       showToast('Pozivnica nije obrisana. Pokušaj ponovno.', 'error');
-
-setTimeout(() => {
-  setToast('');
-}, 3000);
-      return;
     }
-
-    setRoomInvites((prev) => prev.filter((invite) => invite.id !== inviteId));
   }
 
   const avatarSeed = encodeURIComponent(
-  (user?.avatar || user?.username || "Player").trim()
-);
-  const chartData = results
-    .slice()
+    (user?.avatar || user?.username || 'Player').trim(),
+  );
+
+  // Povijest stiže od najnovijeg prema najstarijem; graf prikazuje zadnjih 10
+  // partija kronološki (najstarija lijevo).
+  const chartData = matchHistory
+    .slice(0, 10)
     .reverse()
-    .slice(-10)
-    .map((result, index) => ({
+    .map((match, index) => ({
       name: `Igra ${index + 1}`,
-      score: result.score,
+      score: match.score,
     }));
-    
 
   return (
     <main className={`${shellClass} px-4 py-5 sm:px-6 lg:px-8`}>
@@ -333,23 +264,20 @@ setTimeout(() => {
           >
             ← Nazad
           </Link>
-
         </header>
 
         {user && (
           <section className={`${cardClass} mb-6 overflow-hidden`}>
             <div className="grid gap-0 lg:grid-cols-[360px_1fr]">
               <div className="border-b border-[#778DA9]/15 bg-[#0D1B2A]/35 p-6 text-center lg:border-b-0 lg:border-r">
-            
-
                 <Image
-  src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${avatarSeed}`}
-  alt={user.username}
-  width={128}
-  height={128}
-  className="mx-auto mb-4 h-32 w-32 rounded-full bg-[#0D1B2A] ring-4 ring-[#778DA9]/20"
-  unoptimized
-/>
+                  src={`https://api.dicebear.com/8.x/thumbs/svg?seed=${avatarSeed}`}
+                  alt={user.username}
+                  width={128}
+                  height={128}
+                  className="mx-auto mb-4 h-32 w-32 rounded-full bg-[#0D1B2A] ring-4 ring-[#778DA9]/20"
+                  unoptimized
+                />
 
                 <p className="text-sm font-bold uppercase tracking-[0.22em] text-[#778DA9]">
                   Player Profile
@@ -494,7 +422,9 @@ setTimeout(() => {
                     >
                       <div>
                         <p className="font-black">
-                          {new Date(match.createdAt).toLocaleDateString('hr-HR')}
+                          {new Date(match.createdAt).toLocaleDateString(
+                            'hr-HR',
+                          )}
                         </p>
                         <p className="mt-1 text-sm text-[#778DA9]">
                           Mode: {match.mode}
@@ -546,12 +476,12 @@ setTimeout(() => {
                       </p>
 
                       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                        <a
+                        <Link
                           href={`/?room=${invite.roomCode}`}
                           className={`${successButtonClass} text-center`}
                         >
                           Pridruži se
-                        </a>
+                        </Link>
 
                         <button
                           onClick={() => deleteInvite(invite.id)}
@@ -597,21 +527,20 @@ setTimeout(() => {
                 </div>
               )}
             </section>
-
           </aside>
         </div>
       </div>
       {toast && (
-  <div
-    className={`fixed bottom-5 right-5 z-50 rounded-2xl border px-5 py-3 font-bold shadow-xl backdrop-blur ${
-      toastType === 'success'
-        ? 'border-[#388E3C]/30 bg-[#388E3C]/15 text-[#75d27a]'
-        : 'border-[#C62828]/30 bg-[#C62828]/15 text-[#ffb4b4]'
-    }`}
-  >
-    {toast}
-  </div>
-)}
+        <div
+          className={`fixed bottom-5 right-5 z-50 rounded-2xl border px-5 py-3 font-bold shadow-xl backdrop-blur ${
+            toastType === 'success'
+              ? 'border-[#388E3C]/30 bg-[#388E3C]/15 text-[#75d27a]'
+              : 'border-[#C62828]/30 bg-[#C62828]/15 text-[#ffb4b4]'
+          }`}
+        >
+          {toast}
+        </div>
+      )}
     </main>
   );
 }

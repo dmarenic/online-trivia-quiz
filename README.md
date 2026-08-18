@@ -33,7 +33,7 @@ Projekt podržava:
 * Multiplayer kviz sobe
 * Sustav prijatelja
 * Room pozivnice
-* Globalne i dnevne leaderboarde
+* Dnevnu ljestvicu poretka i poredak po sobi
 * Administratorsko upravljanje pitanjima
 * AI generiranje novih pitanja
 
@@ -73,7 +73,7 @@ Deployment:
 ## Daily Challenge
 
 * Jedan pokušaj dnevno
-* Nasumično generirana pitanja
+* Pitanja koja se biraju deterministički po datumu (isti izbor za sve igrače tog dana)
 * Bodovanje prema uspješnosti
 * Dnevna ljestvica poretka
 
@@ -245,7 +245,6 @@ ONLINE-TRIVIA-QUIZ
 │   │   ├── config
 │   │   ├── daily-challenge
 │   │   ├── health
-│   │   ├── leaderboard
 │   │   ├── prisma
 │   │   ├── questions
 │   │   ├── users
@@ -328,6 +327,30 @@ Potrebno je imati instalirano:
 * Node.js 20+
 * PostgreSQL
 * Docker (opcionalno)
+
+## Environment datoteke
+
+Prije prvog pokretanja kopiraj predloške i popuni vrijednosti:
+
+```bash
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env.local
+```
+
+Bez obveznih varijabli backend se namjerno ne pokreće (`backend/src/config/validate-env.ts`).
+Predlošci sadrže samo placeholder vrijednosti — stvarne tajne nikada se ne commitaju.
+
+## Docker
+
+Pokretanje cijelog stacka (PostgreSQL + backend na `:3000` + frontend na `:3001`):
+
+```bash
+docker compose up --build
+```
+
+Za Docker `DATABASE_URL` i `DIRECT_URL` u `backend/.env` moraju pokazivati na servis
+`postgres` i koristiti iste vrijednosti kao `POSTGRES_USER`, `POSTGRES_PASSWORD` i
+`POSTGRES_DB` iz iste datoteke; gotov primjer nalazi se u `backend/.env.example`.
 
 ## Backend
 

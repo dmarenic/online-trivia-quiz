@@ -10,6 +10,7 @@ dist/
 
 # Logs
 *.log
+lint-output.txt
 
 # OS
 .DS_Store
