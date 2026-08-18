@@ -1,98 +1,72 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Backend — Online Trivia Quiz
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+NestJS aplikacija koja poslužuje REST API i Socket.IO gateway za multiplayer
+kviz. Podatke sprema u PostgreSQL preko Prisma ORM-a.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Cjelovit opis projekta, arhitektura i upute za Docker nalaze se u
+[korijenskom README-u](../README.md). Real-time protokol dokumentiran je
+zasebno u `SOCKET_PROTOCOL.md`.
 
-## Description
+## Što sadrži
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- **REST API** — autentikacija (JWT), korisnički profil i statistika, sustav
+  prijatelja, pozivnice u sobu, dnevni izazov i administracija pitanja
+  (uključujući generiranje pomoću Google Gemini API-ja).
+- **Socket.IO gateway** (`src/game.gateway.ts`) — cjelokupna logika multiplayer
+  partije. Stanje soba drži se u memoriji procesa; u bazu se sprema samo
+  konačni rezultat.
+- **Prisma sloj** — shema, migracije i seed skripta s bazom pitanja.
 
-## Project setup
+## Instalacija
 
 ```bash
-$ npm install
+npm install
+npx prisma generate
+npx prisma migrate deploy
+npx prisma db seed
 ```
 
-## Compile and run the project
+Prije pokretanja kopiraj predložak varijabli okruženja i popuni vrijednosti:
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+cp .env.example .env
 ```
 
-## Run tests
+## npm skripte
+
+| Skripta                | Namjena                                          |
+| ---------------------- | ------------------------------------------------ |
+| `npm run start:dev`    | Razvojni poslužitelj s praćenjem promjena (:3000) |
+| `npm run build`        | Produkcijski build (`dist/`)                      |
+| `npm run start:prod`   | Pokretanje builda                                 |
+| `npm run lint`         | ESLint s automatskim popravkom                    |
+| `npm run format`       | Prettier nad `src/` i `test/`                     |
+| `npm test`             | Jedinični testovi (Jest)                          |
+| `npm run test:e2e`     | End-to-end testovi                                |
+| `npx prisma migrate dev` | Nova migracija u razvoju                        |
+| `npx prisma db seed`   | Punjenje baze pitanjima (`prisma/seed.ts`)        |
+
+## Environment varijable
+
+Aplikacija se namjerno **neće pokrenuti** ako neka obavezna varijabla
+nedostaje (`src/config/validate-env.ts`).
+
+| Varijabla         | Obavezna | Opis                                                  |
+| ----------------- | -------- | ----------------------------------------------------- |
+| `DATABASE_URL`    | da       | Connection string prema PostgreSQL bazi                |
+| `DIRECT_URL`      | da       | Izravna veza za Prisma migracije                       |
+| `JWT_SECRET`      | da       | Tajna za potpisivanje tokena, najmanje 32 znaka        |
+| `FRONTEND_URL`    | da       | Dopušteno podrijetlo za CORS (REST i WebSocket)        |
+| `GEMINI_API_KEY`  | da       | Ključ za AI generiranje pitanja                        |
+| `JWT_EXPIRES_IN`  | ne       | Trajanje tokena, zadano `7d`                           |
+| `PORT`            | ne       | Port poslužitelja, zadano `3000`                       |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | za Docker | Koristi ih `postgres` servis iz `docker-compose.yml` |
+
+## Razvojni poslužitelj
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm run start:dev
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+API je tada dostupan na `http://localhost:3000`, a provjera zdravlja na
+`http://localhost:3000/health`.

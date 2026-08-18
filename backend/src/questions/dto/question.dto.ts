@@ -15,6 +15,12 @@ export class QuestionDto {
   @MaxLength(50)
   category: string;
 
+  // Neobavezno radi kompatibilnosti: ako izostane, Prisma pri kreiranju
+  // primjenjuje default "medium", a pri izmjeni ostavlja postojeću vrijednost.
+  @IsOptional()
+  @IsIn(['easy', 'medium', 'hard'])
+  difficulty?: string;
+
   @IsString()
   @MinLength(5)
   @MaxLength(500)

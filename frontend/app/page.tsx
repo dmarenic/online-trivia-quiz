@@ -3,6 +3,14 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { io, Socket } from 'socket.io-client';
+import { apiFetch } from '@/src/lib/api';
+import {
+  cardClass,
+  inputClass,
+  primaryButtonClass,
+  shellClass,
+  successButtonClass,
+} from '@/src/lib/ui';
 
 type User = {
   id: string;
@@ -25,21 +33,6 @@ function playSound(src: string) {
   audio.volume = 0.6;
   audio.play().catch(() => {});
 }
-
-const shellClass =
-  'min-h-screen bg-[radial-gradient(circle_at_50%_-10%,rgba(65,90,119,0.2),transparent_34%),linear-gradient(180deg,#0D1B2A_0%,#071523_100%)] text-[#E0E1DD]';
-
-const cardClass =
-  'rounded-[20px] border border-[#778DA9]/20 bg-[#1B263B]/88 shadow-[0_20px_70px_rgba(0,0,0,0.28)] backdrop-blur';
-
-const inputClass =
-  'w-full rounded-2xl border border-[#778DA9]/20 bg-[#0D1B2A]/70 px-4 py-3 text-[#E0E1DD] outline-none transition placeholder:text-[#778DA9] focus:border-[#778DA9]/55 focus:ring-4 focus:ring-[#778DA9]/10';
-
-const primaryButtonClass =
-  'rounded-2xl bg-[#415A77] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#4f6d8f] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
-
-const successButtonClass =
-  'rounded-2xl bg-[#388E3C] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#43A047] hover:shadow-lg hover:shadow-black/20 active:translate-y-0';
 
 const dangerButtonClass =
   'rounded-2xl bg-[#C62828] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#D32F2F]';
@@ -69,7 +62,7 @@ export default function Home() {
     }
 
     let socket: Socket | null = null;
-    let inviteInterval: number | null = null;
+    let hasConnectedOnce = false;
 
     const inviteTimers = new Map<string, number>();
     const hiddenInviteIds = new Set<string>();
@@ -77,15 +70,9 @@ export default function Home() {
     const deleteInviteFromBackend = async (inviteId: string) => {
       if (!token) return;
 
-      await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/users/me/room-invites/${inviteId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      ).catch(() => {});
+      await apiFetch(`/users/room-invites/${inviteId}`, {
+        method: 'DELETE',
+      }).catch(() => {});
     };
 
     const removeInvite = (inviteId: string, deleteFromBackend = false) => {
@@ -141,20 +128,7 @@ export default function Home() {
     const fetchInvites = async () => {
       if (!token) return;
 
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/users/me/room-invites`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      if (!res.ok) {
-        throw new Error('Greška kod učitavanja pozivnica.');
-      }
-
-      const data = await res.json();
+      const data = await apiFetch<Invite[]>('/users/me/room-invites');
       const fetchedInvites: Invite[] = Array.isArray(data) ? data : [];
 
       setInvites(
@@ -189,6 +163,15 @@ export default function Home() {
 
       socket.on('connect', () => {
         socket?.emit('join_user_channel', { userId: parsedUser.id });
+
+        // Prvo spajanje pokriva pocetni fetchInvites() nize; nakon reconnecta
+        // treba ponovno dohvatiti pozivnice koje su stigle dok je veza bila
+        // prekinuta - u normalnom radu ih donosi room_invite_received event.
+        if (hasConnectedOnce) {
+          fetchInvites().catch(() => {});
+        }
+
+        hasConnectedOnce = true;
       });
 
       socket.on('room_invite_received', (invite: Invite) => {
@@ -201,10 +184,6 @@ export default function Home() {
       });
 
       fetchInvites().catch(() => {});
-
-      inviteInterval = window.setInterval(() => {
-        fetchInvites().catch(() => {});
-      }, 2000);
     } catch {
       localStorage.removeItem('user');
       setLoading(false);
@@ -212,10 +191,6 @@ export default function Home() {
 
     return () => {
       socket?.disconnect();
-
-      if (inviteInterval) {
-        window.clearInterval(inviteInterval);
-      }
 
       inviteTimers.forEach((timer) => {
         window.clearTimeout(timer);
@@ -258,22 +233,16 @@ export default function Home() {
   }
 
   async function rejectInvite(inviteId: string) {
-  setInvites((prev) => prev.filter((invite) => invite.id !== inviteId));
+    setInvites((prev) => prev.filter((invite) => invite.id !== inviteId));
 
-  const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token');
 
-  if (!token) return;
+    if (!token) return;
 
-  await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/users/me/room-invites/${inviteId}`,
-    {
+    await apiFetch(`/users/room-invites/${inviteId}`, {
       method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    },
-  ).catch(() => {});
-}
+    }).catch(() => {});
+  }
 
   return (
     <main className={`${shellClass} px-4 py-5 sm:px-6 lg:px-8`}>
@@ -299,7 +268,11 @@ export default function Home() {
                 Friends
               </Link>
 
-              <button type="button" onClick={logout} className={dangerButtonClass}>
+              <button
+                type="button"
+                onClick={logout}
+                className={dangerButtonClass}
+              >
                 Odjava
               </button>
             </nav>

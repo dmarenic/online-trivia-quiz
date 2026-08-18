@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { QUIZ_CATEGORIES } from "../src/questions/categories";
 
 const prisma = new PrismaClient();
 
@@ -13,21 +14,9 @@ type SeedQuestion = {
   correctAnswer: string;
 };
 
-const categoriesToReset = [
-  "Sport",
-  "Geografija",
-  "Računarstvo",
-  "Povijest",
-  "Znanost",
-  "Književnost",
-  "Umjetnost",
-  "Glazba",
-  "Videoigre",
-  "Trendovi i aktualnosti",
-  "Poslovanje i brendovi",
-  "Životinje",
-  "Ljudsko tijelo i zdravlje"
-];
+// Seed briše i ponovno upisuje samo kategorije s ovog popisa; dijeli ga s
+// aplikacijom da se popisi ne raziđu.
+const categoriesToReset = QUIZ_CATEGORIES;
 
 const questionsWithDifficulty: SeedQuestion[] = [
   {
@@ -2657,7 +2646,7 @@ async function main() {
     },
   });
 
-  console.log("Matematika je obrisana.");
+  console.log(`Obrisane kategorije: ${categoriesToReset.length}`);
   console.log("Pitanja su uspješno dodana.");
   console.table(
     counts.map((item) => ({

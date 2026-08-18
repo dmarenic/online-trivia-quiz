@@ -1,8 +1,10 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import Image from "next/image";
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import { apiFetch } from '@/src/lib/api';
+import { cardClass, primaryButtonClass, shellClass } from '@/src/lib/ui';
 
 type DailyResult = {
   id: string;
@@ -15,19 +17,10 @@ type DailyResult = {
   };
 };
 
-const shellClass =
-  "min-h-screen bg-[radial-gradient(circle_at_50%_-10%,rgba(65,90,119,0.2),transparent_34%),linear-gradient(180deg,#0D1B2A_0%,#071523_100%)] text-[#E0E1DD]";
-
-const cardClass =
-  "rounded-[20px] border border-[#778DA9]/20 bg-[#1B263B]/88 shadow-[0_20px_70px_rgba(0,0,0,0.28)] backdrop-blur";
-
-const primaryButtonClass =
-  "rounded-2xl bg-[#415A77] px-5 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#4f6d8f] hover:shadow-lg hover:shadow-black/20 active:translate-y-0";
-
 function getRankLabel(index: number) {
-  if (index === 0) return "🥇";
-  if (index === 1) return "🥈";
-  if (index === 2) return "🥉";
+  if (index === 0) return '🥇';
+  if (index === 1) return '🥈';
+  if (index === 2) return '🥉';
 
   return index + 1;
 }
@@ -36,27 +29,21 @@ export default function DailyLeaderboardPage() {
   const [results, setResults] = useState<DailyResult[]>([]);
 
   useEffect(() => {
-  async function loadLeaderboard() {
-    try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/daily-challenge/leaderboard`,
-      );
+    async function loadLeaderboard() {
+      try {
+        const data = await apiFetch<DailyResult[]>(
+          '/daily-challenge/leaderboard',
+        );
 
-      if (!res.ok) {
-        throw new Error('Greška kod dohvaćanja daily leaderboarda.');
+        setResults(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error(error);
+        setResults([]);
       }
-
-      const data = await res.json();
-
-      setResults(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error(error);
-      setResults([]);
     }
-  }
 
-  loadLeaderboard();
-}, []);
+    loadLeaderboard();
+  }, []);
 
   const topScore = results[0]?.score ?? 0;
 
@@ -106,7 +93,10 @@ export default function DailyLeaderboardPage() {
               ovdje.
             </p>
 
-            <Link href="/daily" className={`${primaryButtonClass} mt-7 inline-flex`}>
+            <Link
+              href="/daily"
+              className={`${primaryButtonClass} mt-7 inline-flex`}
+            >
               Otvori Daily Challenge
             </Link>
           </section>
@@ -135,9 +125,7 @@ export default function DailyLeaderboardPage() {
                   <p className="text-sm font-bold uppercase tracking-[0.22em] text-[#778DA9]">
                     Ranked Players
                   </p>
-                  <h2 className="mt-2 text-3xl font-black">
-                    Današnji poredak
-                  </h2>
+                  <h2 className="mt-2 text-3xl font-black">Današnji poredak</h2>
                 </div>
 
                 <span className="rounded-full border border-[#778DA9]/20 bg-[#415A77]/20 px-4 py-2 text-sm font-black text-[#B8C4D6]">
@@ -156,8 +144,8 @@ export default function DailyLeaderboardPage() {
                       key={result.id}
                       className={`flex flex-col justify-between gap-4 rounded-2xl border p-4 transition hover:-translate-y-0.5 sm:flex-row sm:items-center ${
                         index < 3
-                          ? "border-[#388E3C]/25 bg-[#0D1B2A]/70"
-                          : "border-[#778DA9]/15 bg-[#0D1B2A]/55 hover:border-[#778DA9]/35 hover:bg-[#0D1B2A]/75"
+                          ? 'border-[#388E3C]/25 bg-[#0D1B2A]/70'
+                          : 'border-[#778DA9]/15 bg-[#0D1B2A]/55 hover:border-[#778DA9]/35 hover:bg-[#0D1B2A]/75'
                       }`}
                     >
                       <div className="flex min-w-0 items-center gap-4">
@@ -180,7 +168,7 @@ export default function DailyLeaderboardPage() {
                           </p>
 
                           <p className="text-sm text-[#778DA9]">
-                            {new Date(result.createdAt).toLocaleString("hr-HR")}
+                            {new Date(result.createdAt).toLocaleString('hr-HR')}
                           </p>
                         </div>
                       </div>
