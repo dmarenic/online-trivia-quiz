@@ -182,8 +182,8 @@ export default function ProfilePage() {
     setSavingUsername(true);
 
     try {
-      // Jedini poziv koji ne ide kroz apiFetch: treba razlikovati 409 (nadimak
-      // zauzet) od ostalih grešaka, a apiFetch sve pretvara u istu iznimku.
+      // Ne ide kroz apiFetch: treba razlikovati 409 (nadimak zauzet) od ostalih
+      // grešaka, a apiFetch sve pretvara u istu iznimku.
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/users/me/username`,
         {
