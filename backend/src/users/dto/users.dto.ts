@@ -24,18 +24,6 @@ export class UpdateUsernameDto {
   username: string;
 }
 
-export class InviteRoomDto {
-  @IsString()
-  @MinLength(1)
-  @MaxLength(50)
-  toUserId: string;
-
-  @IsString()
-  @MinLength(3)
-  @MaxLength(20)
-  roomCode: string;
-}
-
 export class AddFriendDto {
   @IsString()
   @MinLength(USERNAME_MIN_LENGTH)

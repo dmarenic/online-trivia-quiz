@@ -27,6 +27,15 @@ const MAX_PLAYERS_PER_ROOM = 8;
 // najčešće vodi u sobu koje više nema.
 const ROOM_INVITE_TTL_MS = 30000;
 
+// Cjelokupno stanje partije (sobe, igrači, pitanja u tijeku, bodovi) živi
+// isključivo u memoriji ovog procesa, u Map strukturama niže — u bazu se
+// zapisuje tek konačni GameResult. Posljedica je svjesna: ponovno pokretanje
+// poslužitelja prekida sve aktivne partije, ali izbjegava se upis u bazu na
+// svaki odgovor, koji bi na ovoj učestalosti događaja bio usko grlo.
+//
+// `id` je socket id, pa se mijenja pri svakom ponovnom spajanju; `userId`
+// postoji samo za prijavljene igrače i jedini je identifikator koji preživi
+// osvježavanje stranice. Zato se igrač na više mjesta traži po oba ključa.
 type Player = {
   id: string;
   nickname: string;
@@ -69,6 +78,12 @@ type SocketUser = {
   role?: string;
 };
 
+// Fisher-Yates (Knuthovo) miješanje: niz se prolazi od kraja prema početku i
+// svaki se element zamjenjuje s nasumično odabranim elementom iz još
+// nepromiješanog dijela. Za razliku od čestog `sort(() => Math.random() - 0.5)`,
+// ovaj postupak daje jednoliku razdiobu permutacija i radi u linearnom vremenu.
+// Radi se nad kopijom jer se ista funkcija primjenjuje i na polje pitanja
+// dohvaćeno iz baze i na ponuđene odgovore, koje ne želimo mijenjati na mjestu.
 function shuffleArray<T>(array: T[]) {
   const result = [...array];
 
@@ -80,6 +95,10 @@ function shuffleArray<T>(array: T[]) {
   return result;
 }
 
+// Sigurnosna granica pitanja: interni QuizQuestion nosi i correctAnswer, pa se
+// prema klijentu propuštaju samo polja navedena ovdje. Točan odgovor doznaje
+// isključivo igrač koji je već odgovorio, i to kroz answer_result — inače bi ga
+// bilo dovoljno pročitati iz mrežnog prometa prije nego što odabere odgovor.
 function toPublicQuestion(question: QuizQuestion) {
   return {
     id: question.id,
@@ -288,6 +307,13 @@ export class GameGateway implements OnGatewayDisconnect {
     }
   }
 
+  // Jedina provjera ovlasti na razini sobe — kroz nju prolaze sve radnje koje
+  // smije samo host (pokretanje igre, promjena postavki, izbacivanje igrača,
+  // prelazak na sljedeće pitanje). Provjeravaju se dva identiteta jer host može
+  // biti i gost: prijavljeni se prepoznaje po userId-u iz tokena i tako ostaje
+  // host i nakon osvježavanja stranice, dok se gost može prepoznati samo po
+  // socket id-u. Klijent svoju host ulogu nikada ne šalje u payloadu — sučelje
+  // je gumbe skriva, ali odluku donosi isključivo poslužitelj.
   private isRoomHost(room: Room, client: Socket): boolean {
     const authUser = this.getUserFromSocket(client);
 
@@ -1432,6 +1458,19 @@ export class GameGateway implements OnGatewayDisconnect {
     });
   }
 
+  // Prekid veze se namjerno NE tumači kao izlazak iz sobe. Osvježavanje
+  // stranice, prelazak na drugu mrežu ili kratak gubitak signala izgledaju
+  // jednako kao odlazak, pa se obrada dijeli u dvije faze:
+  //
+  //  1. odmah — igrač se označi kao odspojen (connected = false) i ostaje u
+  //     popisu, tako da ga join_room prepozna kao povratnika i vrati mu bodove;
+  //  2. nakon 30 sekundi — ako se u međuvremenu nitko nije vratio, soba se
+  //     zajedno s tajmerima briše iz memorije, uz spremanje rezultata ako je
+  //     partija bila u tijeku.
+  //
+  // Trajni izlazak na vlastitu odluku obrađuje leave_room, koji igrača uklanja
+  // iz popisa odmah. Rate-limit ključevi se brišu ovdje jer su vezani uz socket
+  // id, koji nakon prekida veze više neće biti dodijeljen.
   handleDisconnect(client: Socket) {
     this.messageTimestamps.delete(client.id);
     this.messageTimestamps.delete(`invite_${client.id}`);

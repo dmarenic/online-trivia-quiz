@@ -15,7 +15,6 @@ type Question = {
   category: string;
   question: string;
   options: string[];
-  correctAnswer?: string;
 };
 
 type DailyAnswer = {

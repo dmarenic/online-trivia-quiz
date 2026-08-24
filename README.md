@@ -1,431 +1,169 @@
 # Online Trivia Quiz
 
-> Završni rad: Online Trivia Kviz za više igrača
+Završni rad — online kviz za više igrača u stvarnom vremenu.
 
-Online Trivia Quiz je moderna full-stack web aplikacija razvijena kao završni rad. Sustav omogućuje natjecanje više igrača u stvarnom vremenu kroz kvizove različitih kategorija, uz podršku za privatne sobe, sustav prijatelja, dnevne izazove i ljestvice poretka.
+Igrači stvaraju privatnu sobu, pozivaju prijatelje i zajedno odgovaraju na pitanja
+iz odabrane kategorije. Bodovi se računaju prema točnosti i brzini odgovora, a
+rezultat se prikazuje uživo tijekom partije.
 
-## Opis projekta
+Objavljena verzija: **https://online-trivia-quiz.vercel.app/**
 
-Cilj projekta bio je razviti online multiplayer kviz igru u kojoj se igrači natječu u stvarnom vremenu odgovarajući na pitanja iz različitih kategorija. Aplikacija omogućuje kreiranje privatnih soba, pozivanje prijatelja, prikaz rezultata uživo te praćenje uspješnosti svih sudionika.
+## Funkcionalnosti
 
-Uz osnovne multiplayer funkcionalnosti implementirani su i dodatni moduli poput dnevnih izazova (Daily Challenge), sustava prijatelja (Friends System), administratorskog sučelja za upravljanje pitanjima te integracija umjetne inteligencije za automatsko generiranje novih pitanja.
+- Registracija i prijava (JWT)
+- Privatne sobe s kodom, chat i sustav spremnosti igrača
+- Bodovanje po točnosti i brzini, ljestvica uživo
+- Dnevni izazov — jedan pokušaj po danu, ista pitanja za sve igrače
+- Prijatelji i pozivnice u sobu
+- Administratorsko sučelje za pitanja, uz generiranje pomoću Google Gemini API-ja
+- Profil sa statistikom i poviješću odigranih partija
 
-Produkcijska verzija aplikacije dostupna je na:
+Gost može igrati samo s nadimkom; prijava je potrebna za profil, prijatelje i
+dnevni izazov.
 
-**https://online-trivia-quiz.vercel.app/**
+## Tehnologije
 
----
+| Dio | Tehnologije |
+| --- | --- |
+| Frontend | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS |
+| Backend | NestJS 11, TypeScript, Socket.IO, Passport (JWT), bcrypt |
+| Baza | PostgreSQL, Prisma ORM |
+| Ostalo | Google Gemini API, Docker, GitHub Actions |
 
-# Pregled projekta
-
-Aplikacija je razvijena korištenjem moderne web arhitekture koja se sastoji od:
-
-* Next.js frontend aplikacije
-* NestJS backend API-ja
-* PostgreSQL baze podataka
-* Prisma ORM sloja
-* Socket.IO komunikacije u stvarnom vremenu
-* Google Gemini AI integracije
-
-Projekt podržava:
-
-* Daily Challenge način igre
-* Multiplayer kviz sobe
-* Sustav prijatelja
-* Room pozivnice
-* Dnevnu ljestvicu poretka i poredak po sobi
-* Administratorsko upravljanje pitanjima
-* AI generiranje novih pitanja
-
-> **Socket protokol** (real-time sloj — svi eventi, payloadi i tijek partije) dokumentiran je zasebno u [`SOCKET_PROTOCOL.md`](SOCKET_PROTOCOL.md).
-
----
-
-# Live Demo
-
-Produkcijska aplikacija:
-
-https://online-trivia-quiz.vercel.app/
-
-Deployment:
-
-| Komponenta              | Platforma  |
-| ----------------------- | ---------- |
-| Frontend                | Vercel     |
-| Backend                 | Render     |
-| Database                | PostgreSQL |
-| Real-time Communication | Socket.IO  |
-
----
-
-# Glavne funkcionalnosti
-
-## Korisnički sustav
-
-* Registracija korisnika
-* Prijava korisnika
-* JWT autentifikacija
-* Upravljanje profilom
-* Promjena avatara
-* Promjena nadimka
-* Pregled statistike korisnika
-
-## Daily Challenge
-
-* Jedan pokušaj dnevno
-* Pitanja koja se biraju deterministički po datumu (isti izbor za sve igrače tog dana)
-* Bodovanje prema uspješnosti
-* Dnevna ljestvica poretka
-
-## Multiplayer sustav
-
-* Kreiranje privatnih soba
-* Pridruživanje postojećim sobama
-* Pozivanje prijatelja
-* Chat u stvarnom vremenu
-* Ready sustav
-* Live leaderboard
-* Automatsko bodovanje
-
-## Friends sustav
-
-* Slanje zahtjeva za prijateljstvo
-* Prihvaćanje zahtjeva
-* Odbijanje zahtjeva
-* Pregled liste prijatelja
-* Room pozivnice
-
-## Administratorski sustav
-
-* Dodavanje pitanja
-* Uređivanje pitanja
-* Brisanje pitanja
-* AI generiranje pitanja
-* Upravljanje bazom pitanja
-
----
-
-# Korištene tehnologije
-
-## Frontend
-
-### Next.js 16
-
-Korišten za razvoj korisničkog sučelja aplikacije koristeći App Router arhitekturu.
-
-### React 19
-
-Korišten za razvoj interaktivnih komponenti i upravljanje stanjem aplikacije.
-
-### TypeScript
-
-Osigurava tipnu sigurnost i smanjuje mogućnost runtime grešaka.
-
-### Tailwind CSS
-
-Korišten za responzivni dizajn i moderni izgled aplikacije.
-
-### Socket.IO Client
-
-Omogućuje komunikaciju s backendom u stvarnom vremenu.
-
----
-
-## Backend
-
-### NestJS
-
-Glavni backend framework korišten za:
-
-* REST API
-* JWT autentifikaciju
-* WebSocket Gateway
-* Upravljanje korisnicima
-* Upravljanje pitanjima
-* Upravljanje prijateljima
-* Upravljanje rezultatima
-
-### Prisma ORM
-
-Korišten za:
-
-* pristup bazi podataka
-* migracije baze
-* tipizirane upite
-
-### PostgreSQL
-
-Relacijska baza podataka za trajnu pohranu podataka.
-
-### JWT + Passport
-
-Koristi se za autentifikaciju i autorizaciju korisnika.
-
-### bcrypt
-
-Koristi se za hashiranje korisničkih lozinki prije spremanja u bazu podataka.
-
-### NestJS Throttler
-
-Koristi se za zaštitu API-ja od prekomjernog broja zahtjeva i potencijalnog spama.
-
----
-
-## AI Integracija
-
-### Google Gemini API
-
-Koristi se za automatsko generiranje novih kviz pitanja unutar administratorskog sustava.
-
-Administrator može definirati:
-
-* kategoriju
-* težinu
-* broj pitanja
-* temu
-
-Nakon čega Gemini generira nova pitanja koja se mogu spremiti u bazu podataka.
-
----
-
-## DevOps i razvoj
-
-### Docker
-
-Koristi se za kontejnerizaciju aplikacije i pojednostavljeno pokretanje razvojnog okruženja.
-
-### Git
-
-Sustav za verzioniranje izvornog koda.
-
-### GitHub
-
-Repozitorij i upravljanje razvojem projekta.
-
-### GitHub Actions
-
-Automatizacija build procesa putem CI/CD workflowa.
-
----
-
-# Arhitektura sustava
+## Arhitektura
 
 ```text
-Client Browser
-       │
-       ▼
-Frontend (Next.js)
-       │
-       ├──────────── REST API ────────────┐
-       │                                  │
-       ▼                                  ▼
-NestJS Backend                    Socket.IO Gateway
-       │                                  │
-       └──────────── Prisma ORM ──────────┘
-                      │
-                      ▼
-                PostgreSQL
+        preglednik
+            │
+   ┌────────┴────────┐
+   │  Next.js (3001) │
+   └────────┬────────┘
+            │  REST  +  Socket.IO
+   ┌────────┴────────┐
+   │  NestJS (3000)  │
+   └────────┬────────┘
+            │  Prisma
+      ┌─────┴─────┐
+      │ PostgreSQL│
+      └───────────┘
 ```
 
----
+REST pokriva prijavu, profil, prijatelje, dnevni izazov i administraciju pitanja.
+Socket.IO pokriva sve što se događa unutar sobe — ulazak, chat, pitanja, odgovore
+i rezultat.
 
-# Struktura projekta
+Stanje aktivnih partija drži se u memoriji poslužitelja, a u bazu se sprema tek
+konačni rezultat. Zbog toga ponovno pokretanje poslužitelja prekida partije koje
+su u tijeku. Detalji real-time sloja opisani su u
+[`SOCKET_PROTOCOL.md`](SOCKET_PROTOCOL.md).
+
+## Struktura projekta
 
 ```text
-ONLINE-TRIVIA-QUIZ
-│
-├── backend
-│   ├── prisma
-│   │   ├── migrations
-│   │   ├── schema.prisma
-│   │   └── seed.ts
-│   │
-│   ├── src
-│   │   ├── auth
-│   │   ├── config
-│   │   ├── daily-challenge
-│   │   ├── health
-│   │   ├── prisma
-│   │   ├── questions
-│   │   ├── users
-│   │   ├── game.gateway.ts
-│   │   ├── app.module.ts
+online-trivia-quiz
+├── backend/               NestJS API + Socket.IO gateway
+│   ├── prisma/            shema, migracije, seed skripta
+│   ├── src/
+│   │   ├── auth/          registracija, prijava, JWT, guardovi
+│   │   ├── daily-challenge/
+│   │   ├── questions/     administracija i AI generiranje
+│   │   ├── users/         profil, statistika, prijatelji
+│   │   ├── game.gateway.ts   cjelokupna logika multiplayer partije
 │   │   └── main.ts
-│   │
-│   ├── Dockerfile
-│   └── package.json
-│
-├── frontend
-│   ├── app
-│   │   ├── admin
-│   │   ├── daily
-│   │   ├── friends
-│   │   ├── leaderboard
-│   │   ├── login
-│   │   ├── profile
-│   │   ├── register
-│   │   ├── room
-│   │   ├── layout.tsx
-│   │   └── page.tsx
-│   │
-│   ├── public
-│   ├── src
-│   ├── Dockerfile
-│   └── package.json
-│
-├── .github
-│   └── workflows
-│       └── build.yml
-│
+│   └── test/
+├── frontend/              Next.js aplikacija
+│   ├── app/               stranice po značajkama
+│   └── src/lib/           zajednički kod (API poziv, konstante)
+├── .github/workflows/     CI
 ├── docker-compose.yml
-└── README.md
+└── SOCKET_PROTOCOL.md
 ```
 
----
+## Pokretanje
 
-# Sigurnost
+Potrebni su Node.js 20+ i PostgreSQL (ili Docker).
 
-Projekt implementira više sigurnosnih mehanizama:
-
-## Autentifikacija
-
-* JWT tokeni
-* Passport strategije
-* Zaštićene rute
-
-## Sigurnost lozinki
-
-* bcrypt hashiranje
-* Lozinke se nikada ne pohranjuju u izvornom obliku
-
-## Validacija podataka
-
-* DTO validacija
-* class-validator
-* class-transformer
-
-## Rate Limiting
-
-Zaštita od:
-
-* spam poruka
-* spam pozivnica
-* prekomjernog broja API zahtjeva
-
-## Environment validacija
-
-Prilikom pokretanja aplikacije provjeravaju se obavezne konfiguracijske vrijednosti.
-
----
-
-# Lokalno pokretanje
-
-## Preduvjeti
-
-Potrebno je imati instalirano:
-
-* Node.js 20+
-* PostgreSQL
-* Docker (opcionalno)
-
-## Environment datoteke
-
-Prije prvog pokretanja kopiraj predloške i popuni vrijednosti:
+### 1. Varijable okruženja
 
 ```bash
 cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env.local
 ```
 
-Bez obveznih varijabli backend se namjerno ne pokreće (`backend/src/config/validate-env.ts`).
-Predlošci sadrže samo placeholder vrijednosti — stvarne tajne nikada se ne commitaju.
+Backend se namjerno neće pokrenuti ako neka obavezna varijabla nedostaje:
+`DATABASE_URL`, `DIRECT_URL`, `JWT_SECRET` (najmanje 32 znaka), `FRONTEND_URL`
+i `GEMINI_API_KEY`. Frontend treba samo `NEXT_PUBLIC_API_URL`.
 
-## Docker
+### 2. Backend
 
-Pokretanje cijelog stacka (PostgreSQL + backend na `:3000` + frontend na `:3001`):
-
-```bash
-docker compose up --build
-```
-
-Za Docker `DATABASE_URL` i `DIRECT_URL` u `backend/.env` moraju pokazivati na servis
-`postgres` i koristiti iste vrijednosti kao `POSTGRES_USER`, `POSTGRES_PASSWORD` i
-`POSTGRES_DB` iz iste datoteke; gotov primjer nalazi se u `backend/.env.example`.
-
-## Backend
-
-Instalacija paketa:
+Iz direktorija `backend/`:
 
 ```bash
 npm install
-npx prisma migrate deploy
 npx prisma generate
+npx prisma migrate deploy
+npx prisma db seed
 npm run start:dev
 ```
 
-## Frontend
+Bez koraka `npx prisma db seed` baza nema nijedno pitanje pa se partija ne može
+pokrenuti. API je zatim na `http://localhost:3000`.
 
-Instalacija paketa:
+### 3. Frontend
+
+Iz direktorija `frontend/`:
 
 ```bash
 npm install
 npm run dev
 ```
 
----
+Sučelje je na `http://localhost:3001`.
 
-# Environment konfiguracija
+### Docker
 
-Backend pri pokretanju automatski učitava datoteku `backend/.env`
-(predložak: `backend/.env.example`). Bez postavljenih obveznih
-varijabli server se namjerno odbija pokrenuti.
+Cijeli stack (baza + backend + frontend) pokreće se odjednom:
 
-Backend koristi sljedeće environment varijable:
-
-```env
-DATABASE_URL=
-DIRECT_URL=
-JWT_SECRET=
-FRONTEND_URL=
-GEMINI_API_KEY=
+```bash
+docker compose up --build
 ```
 
-Frontend koristi:
+Bez `--build` Compose ponovno koristi ranije izgrađene slike, pa se izmjene koda
+ne vide. Za ovaj način rada `DATABASE_URL` i `DIRECT_URL` u `backend/.env` moraju
+pokazivati na servis `postgres`.
 
-```env
-NEXT_PUBLIC_API_URL=
+> Prije naredbi `prisma migrate reset` i `prisma db seed` provjeri na koju bazu
+> ciljaš — obje brišu podatke. `npx prisma migrate status` ispisuje ciljni
+> poslužitelj i ništa ne mijenja.
+
+## Testovi
+
+Iz direktorija `backend/`:
+
+```bash
+npm test
 ```
 
-Nikada ne objavljivati stvarne vrijednosti environment varijabli u repozitoriju.
+Testovi pokrivaju bodovanje, tijek odgovaranja i ovlasti domaćina sobe u Socket.IO
+gatewayu te izračun točnosti igrača. Ne zahtijevaju bazu podataka. Isti se testovi,
+uz ESLint, provjeru tipova i build oba projekta, izvode i u GitHub Actions
+workflowu (`.github/workflows/build.yml`).
 
----
+## Sigurnost
 
-# CI/CD
+- Lozinke se pohranjuju isključivo kao bcrypt hash
+- JWT za prijavu; korisnik se pri svakom zahtjevu ponovno čita iz baze, pa obrisan
+  račun s još valjanim tokenom nema pristup
+- Administratorske rute zaštićene su provjerom uloge
+- REST zahtjevi validiraju se DTO-ima; zahtjev s poljem koje DTO ne opisuje se odbija
+- Socket događaji validiraju se zasebno, jer se DTO validacija na WebSocket sloj
+  ne primjenjuje
+- Ograničenje broja zahtjeva na razini API-ja i pojedinih socket događaja
+- CORS je ograničen na adresu frontenda
 
-Projekt koristi GitHub Actions workflow za automatsku provjeru build procesa.
+Točnost odgovora i bodove računa isključivo poslužitelj. Točan odgovor ne šalje se
+klijentu prije nego što igrač odgovori, pa se ne može pročitati iz mrežnog prometa.
 
-Workflow se nalazi u:
-
-```text
-.github/workflows/build.yml
-```
-
-Automatski se izvršava prilikom promjena u repozitoriju.
-
----
-
-# Moguća buduća proširenja
-
-* Napredniji matchmaking sustav
-* Analitika i statistika igrača
-* Sezonski leaderboard sustav
-* Dodatne kategorije i tipovi kvizova
-* Proširenje AI alata za generiranje sadržaja
-
----
-
-# Autor
+## Autor
 
 Dominik Marenić
-
-Projekt je razvijen kao završni rad na temu **"Online Trivia Kviz za više igrača"** koristeći moderne full-stack tehnologije s naglaskom na multiplayer komunikaciju u stvarnom vremenu.
