@@ -243,27 +243,40 @@ export class DailyChallengeController {
       };
     }
 
-    const uniqueAnswers = Array.from(
-      new Map(
-        body.answers.map((answer) => [answer.questionId, answer]),
-      ).values(),
-    );
-
-    const questionIds = uniqueAnswers.map((answer) => answer.questionId);
-
-    const questions = await this.prisma.question.findMany({
+    // Mjerodavan skup pitanja se ne izvodi iz onoga što je klijent poslao, nego
+    // se ponovno izračuna istim determinističkim izborom kao u getDailyQuestions.
+    // Bez toga bi se odgovori priznavali za bilo koje pitanje iz kategorije, pa
+    // bi netko tko zna točne odgovore mogao poslati do 50 pitanja (gornja
+    // granica iz SubmitDailyDto) i upisati rezultat višestruko veći od najvišeg
+    // mogućeg za taj dan.
+    const categoryQuestions = await this.prisma.question.findMany({
       where: {
-        id: {
-          in: questionIds,
-        },
         category: challenge.category,
       },
     });
 
+    const todayQuestions = pickDailyQuestions(
+      categoryQuestions,
+      challenge.date,
+      challenge.questionCount,
+    );
+
+    const allowedIds = new Set(todayQuestions.map((question) => question.id));
+
+    // Odgovori na pitanja izvan današnjeg izbora se odbacuju, a za pitanje na
+    // koje je poslano više odgovora vrijedi zadnji (Map zadržava zadnji upis).
+    const uniqueAnswers = Array.from(
+      new Map(
+        body.answers
+          .filter((answer) => allowedIds.has(answer.questionId))
+          .map((answer) => [answer.questionId, answer]),
+      ).values(),
+    );
+
     let correctAnswers = 0;
 
     for (const answer of uniqueAnswers) {
-      const question = questions.find((q) => q.id === answer.questionId);
+      const question = todayQuestions.find((q) => q.id === answer.questionId);
 
       if (question && question.correctAnswer === answer.answer) {
         correctAnswers++;
@@ -273,9 +286,9 @@ export class DailyChallengeController {
     // Daily izazov se boduje bez bonusa na brzinu (1000 bodova po točnom
     // odgovoru) jer se igra sam, bez natjecanja u realnom vremenu. Izazov je
     // "ispunjen" kad score dosegne challenge.targetScore.
-    // totalQuestions je broj pitanja koje je server prepoznao kao valjana za
-    // ovaj izazov, a ne broj odgovora koje je klijent poslao.
-    const totalQuestions = questions.length;
+    // Nazivnik je broj pitanja koja izazov stvarno ima, a ne broj odgovora koje
+    // je klijent poslao — inače bi slanje jednog točnog odgovora dalo 100%.
+    const totalQuestions = todayQuestions.length;
     const score = correctAnswers * 1000;
 
     if (totalQuestions === 0) {

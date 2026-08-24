@@ -25,7 +25,7 @@ async function bootstrap() {
   //  - whitelist: polja koja DTO ne deklarira se odbacuju,
   //  - forbidNonWhitelisted: takav zahtjev se čak i odbija (HTTP 400), pa
   //    klijent ne može "prošvercati" polje kojim bi utjecao na zapis u bazi
-  //    (npr. mode na /leaderboard),
+  //    (npr. mode na /daily-challenge/submit),
   //  - transform: tijelo zahtjeva se pretvara u instancu DTO klase, što je
   //    nužno da dekoratori iz class-validatora uopće rade nad ugniježđenim
   //    objektima.

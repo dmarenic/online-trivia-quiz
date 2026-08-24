@@ -1,23 +1,21 @@
-# Frontend — Online Trivia Quiz
+# Frontend
 
-Next.js (App Router) aplikacija koja čini korisničko sučelje kviza: prijava i
-registracija, multiplayer sobe u stvarnom vremenu, dnevni izazov, sustav
-prijatelja, profil sa statistikom i administracija pitanja.
+Next.js aplikacija (App Router) koja čini korisničko sučelje kviza: prijava i
+registracija, multiplayer sobe, dnevni izazov, prijatelji, profil sa statistikom
+i administracija pitanja.
 
-Cjelovit opis projekta i arhitektura nalaze se u
-[korijenskom README-u](../README.md).
+Opis cijelog projekta je u [korijenskom README-u](../README.md).
 
-## Struktura
+## Sadržaj
 
-- `app/` — stranice po značajkama (`room`, `daily`, `friends`, `profile`,
-  `admin/questions`, `leaderboard`, `login`, `register`).
-- `src/lib/` — zajednički kod: `api.ts` (omotač oko fetcha s JWT zaglavljem),
-  `ui.ts` (dijeljene Tailwind klase), `categories.ts`, `validation.ts`.
-- `public/sounds/` — zvučni efekti igre.
+- `app/` — stranice po značajkama: `room`, `daily`, `friends`, `profile`,
+  `leaderboard`, `admin/questions`, `login`, `register`
+- `src/lib/` — zajednički kod: `api.ts` (omotač oko fetcha koji dodaje JWT),
+  `ui.ts` (dijeljene Tailwind klase), `categories.ts`, `validation.ts`
+- `public/sounds/` — zvučni efekti
 
-Svi REST pozivi idu kroz `apiFetch` iz `src/lib/api.ts`. Komunikacija u
-stvarnom vremenu ide preko Socket.IO klijenta koji se stvara u
-`app/room/page.tsx`.
+Svi REST pozivi idu kroz `apiFetch` iz `src/lib/api.ts`. Komunikacija u stvarnom
+vremenu ide preko Socket.IO klijenta koji se stvara u `app/room/page.tsx`.
 
 ## Instalacija
 
@@ -26,31 +24,30 @@ npm install
 cp .env.example .env.local
 ```
 
-## npm skripte
+## Skripte
 
-| Skripta                | Namjena                                      |
-| ---------------------- | -------------------------------------------- |
-| `npm run dev`          | Razvojni poslužitelj na portu **3001**        |
-| `npm run build`        | Produkcijski build                            |
-| `npm start`            | Pokretanje builda (port 3000)                 |
-| `npm run lint`         | ESLint                                        |
-| `npm run format`       | Prettier nad izvornim kodom                   |
-| `npm run format:check` | Provjera formatiranja bez izmjena             |
+| Skripta | Namjena |
+| --- | --- |
+| `npm run dev` | Razvojni poslužitelj, port 3001 |
+| `npm run build` | Produkcijski build |
+| `npm start` | Pokretanje builda, port 3000 |
+| `npm run lint` | ESLint |
+| `npm run format` | Prettier |
+| `npm run format:check` | Provjera formatiranja bez izmjena |
 
-## Environment varijable
+## Varijable okruženja
 
-| Varijabla             | Obavezna | Opis                                    |
-| --------------------- | -------- | --------------------------------------- |
-| `NEXT_PUBLIC_API_URL` | da       | Bazni URL backenda, npr. `http://localhost:3000` |
+| Varijabla | Obavezna | Opis |
+| --- | --- | --- |
+| `NEXT_PUBLIC_API_URL` | da | Adresa backenda, npr. `http://localhost:3000` |
 
-Varijabla se ugrađuje u build, pa nakon njezine promjene treba ponoviti
-`npm run build`.
+Varijabla se ugrađuje u build, pa nakon promjene treba ponoviti `npm run build`.
 
-## Razvojni poslužitelj
+## Pokretanje
 
 ```bash
 npm run dev
 ```
 
-Sučelje je dostupno na `http://localhost:3001`. Backend mora biti pokrenut
-odvojeno (v. [backend/README.md](../backend/README.md)).
+Sučelje je na `http://localhost:3001`. Backend mora biti pokrenut odvojeno
+(v. [backend/README.md](../backend/README.md)).

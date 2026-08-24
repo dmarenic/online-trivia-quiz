@@ -260,7 +260,6 @@ export default function RoomPage() {
       setTotalPlayers(roomData.players.length);
       setQuestionCount(roomData.questionCount ?? 10);
       setTimePerQuestion(roomData.timePerQuestion ?? 15);
-      saveCurrentRoom(roomData);
     });
 
     socket.on('room_updated', (roomData: Room) => {
@@ -272,7 +271,6 @@ export default function RoomPage() {
       setSelectedDifficulty(roomData.selectedDifficulty ?? 'All');
       setQuestionCount(roomData.questionCount ?? 10);
       setTimePerQuestion(roomData.timePerQuestion ?? 15);
-      saveCurrentRoom(roomData);
     });
 
     socket.on('player_joined', (roomData: Room) => {
@@ -282,7 +280,6 @@ export default function RoomPage() {
       setSelectedCategory(roomData.selectedCategory ?? 'All');
       setSelectedDifficulty(roomData.selectedDifficulty ?? 'All');
       setTotalPlayers(roomData.players.length);
-      saveCurrentRoom(roomData);
     });
 
     socket.on('category_updated', (data: { category: string }) => {
@@ -516,12 +513,11 @@ export default function RoomPage() {
           timePerQuestion,
         });
       } else if (roomFromUrl && finalNickname) {
-        const parsedUser = savedUser ? (JSON.parse(savedUser) as User) : null;
-
+        // Identitet se namjerno ne šalje u payloadu: poslužitelj ga izvodi iz
+        // JWT-a u handshakeu, pa klijent ne može tvrditi da je netko drugi.
         socket?.emit('join_room', {
           roomCode: roomFromUrl.toUpperCase(),
           nickname: finalNickname,
-          userId: parsedUser?.id ?? null,
           reconnect: true,
         });
       } else if (savedRoom) {
@@ -647,30 +643,28 @@ export default function RoomPage() {
     setChatInput('');
   }
 
-  async function inviteFriend(friendId: string) {
+  function inviteFriend(friendId: string) {
     if (!user || !room) return;
     if (invitingFriendId) return;
 
     setInvitingFriendId(friendId);
+    playSound('click');
 
-    try {
-      playSound('click');
+    // Pozivnica ide socketom jer je samo tako primatelj dobiva odmah: gateway je
+    // gurne na njegov osobni kanal (`room_invite_received`). Zapis u bazu radi
+    // poslužitelj, pa ovdje nema REST poziva — kad bi ga bilo, pozivnica bi tiho
+    // završila u bazi i primatelj bi je vidio tek pri sljedećem učitavanju stranice.
+    socket.emit('send_room_invite', {
+      toUserId: friendId,
+      roomCode: room.code,
+    });
 
-      await apiFetch('/users/invite-room', {
-        method: 'POST',
-        body: JSON.stringify({
-          toUserId: friendId,
-          roomCode: room.code,
-        }),
-      });
+    showToast('Pozivnica je poslana.', 'success');
 
-      showToast('Pozivnica je uspješno poslana.', 'success');
-    } catch (error) {
-      console.error(error);
-      showToast('Došlo je do pogreške prilikom slanja pozivnice.', 'error');
-    } finally {
-      setInvitingFriendId(null);
-    }
+    // Poslužitelj na ovaj događaj ne vraća potvrdu, pa se gumb otključava nakon
+    // kratke stanke koja sprječava dvostruki klik. Odbijenu pozivnicu (npr.
+    // premašen rate limit) javlja postojeći `error_message` slušatelj.
+    setTimeout(() => setInvitingFriendId(null), 1000);
   }
 
   function leaveRoom() {

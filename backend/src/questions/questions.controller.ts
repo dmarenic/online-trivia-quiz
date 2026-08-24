@@ -60,25 +60,10 @@ export class QuestionsController {
     return difficultyMap[difficulty] ?? difficulty;
   }
 
-  @Get()
-  async getQuestions() {
-    return this.prisma.question.findMany({
-      orderBy: {
-        createdAt: 'desc',
-      },
-      select: {
-        id: true,
-        category: true,
-        question: true,
-        optionA: true,
-        optionB: true,
-        optionC: true,
-        optionD: true,
-        createdAt: true,
-      },
-    });
-  }
-
+  // Jedini način dohvata pitanja preko REST-a, namijenjen administratorskom
+  // sučelju, pa vraća i correctAnswer. Igrači pitanja nikad ne dobivaju ovim
+  // putem: u sobi ih dijeli gateway (bez točnog odgovora), a u dnevnom izazovu
+  // daily-challenge kontroler.
   @UseGuards(JwtAuthGuard, AdminGuard)
   @Get('admin')
   async getAdminQuestions() {
@@ -87,26 +72,6 @@ export class QuestionsController {
         createdAt: 'desc',
       },
     });
-  }
-
-  @UseGuards(JwtAuthGuard, AdminGuard)
-  @Get('ai/models')
-  async listGeminiModels() {
-    const models = await this.ai.models.list();
-
-    const result: {
-      name?: string;
-      supportedActions?: string[];
-    }[] = [];
-
-    for await (const model of models) {
-      result.push({
-        name: model.name,
-        supportedActions: model.supportedActions,
-      });
-    }
-
-    return result;
   }
 
   @UseGuards(JwtAuthGuard, AdminGuard)

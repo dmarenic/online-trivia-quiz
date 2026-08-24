@@ -1,72 +1,64 @@
-# Backend — Online Trivia Quiz
+# Backend
 
-NestJS aplikacija koja poslužuje REST API i Socket.IO gateway za multiplayer
-kviz. Podatke sprema u PostgreSQL preko Prisma ORM-a.
+NestJS aplikacija koja poslužuje REST API i Socket.IO gateway za kviz. Podatke
+sprema u PostgreSQL preko Prisma ORM-a.
 
-Cjelovit opis projekta, arhitektura i upute za Docker nalaze se u
-[korijenskom README-u](../README.md). Real-time protokol dokumentiran je
-zasebno u `SOCKET_PROTOCOL.md`.
+Opis cijelog projekta je u [korijenskom README-u](../README.md), a real-time sloj
+u [`SOCKET_PROTOCOL.md`](../SOCKET_PROTOCOL.md).
 
-## Što sadrži
+## Sadržaj
 
-- **REST API** — autentikacija (JWT), korisnički profil i statistika, sustav
-  prijatelja, pozivnice u sobu, dnevni izazov i administracija pitanja
-  (uključujući generiranje pomoću Google Gemini API-ja).
-- **Socket.IO gateway** (`src/game.gateway.ts`) — cjelokupna logika multiplayer
-  partije. Stanje soba drži se u memoriji procesa; u bazu se sprema samo
-  konačni rezultat.
-- **Prisma sloj** — shema, migracije i seed skripta s bazom pitanja.
+- `src/auth/` — registracija, prijava, JWT strategija i guardovi
+- `src/users/` — profil, statistika, prijatelji, pozivnice u sobu
+- `src/daily-challenge/` — dnevni izazov
+- `src/questions/` — administracija pitanja i generiranje preko Gemini API-ja
+- `src/game.gateway.ts` — cjelokupna logika multiplayer partije
+- `prisma/` — shema, migracije i seed skripta s pitanjima
 
 ## Instalacija
 
 ```bash
 npm install
+cp .env.example .env
 npx prisma generate
 npx prisma migrate deploy
 npx prisma db seed
 ```
 
-Prije pokretanja kopiraj predložak varijabli okruženja i popuni vrijednosti:
+## Skripte
 
-```bash
-cp .env.example .env
-```
+| Skripta | Namjena |
+| --- | --- |
+| `npm run start:dev` | Razvojni poslužitelj s praćenjem promjena, port 3000 |
+| `npm run build` | Produkcijski build u `dist/` |
+| `npm run start:prod` | Pokretanje builda |
+| `npm run lint` | ESLint s automatskim popravkom |
+| `npm run format` | Prettier nad `src/` i `test/` |
+| `npm test` | Jedinični testovi |
+| `npm run test:e2e` | E2e testovi (traže popunjen `.env` i dostupnu bazu) |
+| `npx prisma migrate dev` | Nova migracija u razvoju |
+| `npx prisma db seed` | Punjenje baze pitanjima |
 
-## npm skripte
+## Varijable okruženja
 
-| Skripta                | Namjena                                          |
-| ---------------------- | ------------------------------------------------ |
-| `npm run start:dev`    | Razvojni poslužitelj s praćenjem promjena (:3000) |
-| `npm run build`        | Produkcijski build (`dist/`)                      |
-| `npm run start:prod`   | Pokretanje builda                                 |
-| `npm run lint`         | ESLint s automatskim popravkom                    |
-| `npm run format`       | Prettier nad `src/` i `test/`                     |
-| `npm test`             | Jedinični testovi (Jest)                          |
-| `npm run test:e2e`     | End-to-end testovi                                |
-| `npx prisma migrate dev` | Nova migracija u razvoju                        |
-| `npx prisma db seed`   | Punjenje baze pitanjima (`prisma/seed.ts`)        |
+Aplikacija se namjerno neće pokrenuti ako neka obavezna varijabla nedostaje
+(`src/config/validate-env.ts`).
 
-## Environment varijable
+| Varijabla | Obavezna | Opis |
+| --- | --- | --- |
+| `DATABASE_URL` | da | Veza prema PostgreSQL bazi |
+| `DIRECT_URL` | da | Izravna veza, koristi je Prisma za migracije |
+| `JWT_SECRET` | da | Tajna za potpisivanje tokena, najmanje 32 znaka |
+| `FRONTEND_URL` | da | Dopušteno podrijetlo za CORS |
+| `GEMINI_API_KEY` | da | Ključ za generiranje pitanja |
+| `JWT_EXPIRES_IN` | ne | Trajanje tokena, zadano `7d` |
+| `PORT` | ne | Port poslužitelja, zadano `3000` |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | za Docker | Koristi ih `postgres` servis iz `docker-compose.yml` |
 
-Aplikacija se namjerno **neće pokrenuti** ako neka obavezna varijabla
-nedostaje (`src/config/validate-env.ts`).
-
-| Varijabla         | Obavezna | Opis                                                  |
-| ----------------- | -------- | ----------------------------------------------------- |
-| `DATABASE_URL`    | da       | Connection string prema PostgreSQL bazi                |
-| `DIRECT_URL`      | da       | Izravna veza za Prisma migracije                       |
-| `JWT_SECRET`      | da       | Tajna za potpisivanje tokena, najmanje 32 znaka        |
-| `FRONTEND_URL`    | da       | Dopušteno podrijetlo za CORS (REST i WebSocket)        |
-| `GEMINI_API_KEY`  | da       | Ključ za AI generiranje pitanja                        |
-| `JWT_EXPIRES_IN`  | ne       | Trajanje tokena, zadano `7d`                           |
-| `PORT`            | ne       | Port poslužitelja, zadano `3000`                       |
-| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | za Docker | Koristi ih `postgres` servis iz `docker-compose.yml` |
-
-## Razvojni poslužitelj
+## Pokretanje
 
 ```bash
 npm run start:dev
 ```
 
-API je tada dostupan na `http://localhost:3000`, a provjera zdravlja na
-`http://localhost:3000/health`.
+API je na `http://localhost:3000`, provjera zdravlja na `http://localhost:3000/health`.
