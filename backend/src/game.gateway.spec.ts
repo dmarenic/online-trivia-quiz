@@ -362,7 +362,7 @@ describe('GameGateway', () => {
     });
   });
 
-  describe('regresija BUG-1 — javni payload sobe ne smije curiti odgovore', () => {
+  describe('regresija — javni payload sobe ne smije curiti odgovore', () => {
     let serverEmit: jest.Mock<void, [string, unknown]>;
 
     beforeEach(() => {
@@ -453,7 +453,7 @@ describe('GameGateway', () => {
     });
   });
 
-  describe('generateRoomCode — generiranje koda sobe (regresija BUG-4)', () => {
+  describe('generateRoomCode — generiranje koda sobe (regresija)', () => {
     it('kod sobe ima uvijek točno 6 znakova', () => {
       // Arrange & Act: generiraj veći uzorak kodova
       const codes = Array.from({ length: 200 }, () =>

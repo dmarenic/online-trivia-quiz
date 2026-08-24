@@ -14,7 +14,10 @@ Opis cijelog projekta je u [korijenskom README-u](../README.md).
   `ui.ts` (dijeljene Tailwind klase), `categories.ts`, `validation.ts`
 - `public/sounds/` — zvučni efekti
 
-Svi REST pozivi idu kroz `apiFetch` iz `src/lib/api.ts`. Komunikacija u stvarnom
+Većina REST poziva ide kroz `apiFetch` iz `src/lib/api.ts`. Iznimke su prijava,
+registracija, dodavanje prijatelja i izmjena nadimka: one zovu `fetch` izravno
+jer im treba status ili tijelo neuspješnog odgovora (npr. 409 kad je nadimak
+zauzet), a `apiFetch` svaki neuspjeh pretvara u iznimku. Komunikacija u stvarnom
 vremenu ide preko Socket.IO klijenta koji se stvara u `app/room/page.tsx`.
 
 ## Instalacija
