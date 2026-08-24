@@ -162,9 +162,11 @@ export default function Home() {
       });
 
       socket.on('connect', () => {
-        socket?.emit('join_user_channel', { userId: parsedUser.id });
+        // Bez payloada: poslužitelj kanal veže uz korisnika iz JWT-a, pa bi
+        // poslani userId ionako bio zanemaren.
+        socket?.emit('join_user_channel');
 
-        // Prvo spajanje pokriva pocetni fetchInvites() nize; nakon reconnecta
+        // Prvo spajanje pokriva početni fetchInvites() niže; nakon reconnecta
         // treba ponovno dohvatiti pozivnice koje su stigle dok je veza bila
         // prekinuta - u normalnom radu ih donosi room_invite_received event.
         if (hasConnectedOnce) {

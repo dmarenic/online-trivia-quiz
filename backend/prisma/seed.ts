@@ -1601,7 +1601,7 @@ const questionsWithDifficulty: SeedQuestion[] = [
   },
   {
     "category": "Glazba",
-    "difficulty": "easy",
+    "difficulty": "hard",
     "question": "Koji žanr često koristi DJ-eve i elektroničke beatove?",
     "optionA": "Blues",
     "optionB": "Koral",
@@ -1611,7 +1611,7 @@ const questionsWithDifficulty: SeedQuestion[] = [
   },
   {
     "category": "Glazba",
-    "difficulty": "medium",
+    "difficulty": "hard",
     "question": "Tko je poznat po skladbi Mala noćna muzika?",
     "optionA": "Vivaldi",
     "optionB": "Mozart",
@@ -1901,7 +1901,7 @@ const questionsWithDifficulty: SeedQuestion[] = [
   },
   {
     "category": "Trendovi i aktualnosti",
-    "difficulty": "easy",
+    "difficulty": "hard",
     "question": "Koji je izraz za kratkotrajni trend na društvenim mrežama?",
     "optionA": "Trend",
     "optionB": "Backup",
@@ -2618,10 +2618,535 @@ const questionsWithDifficulty: SeedQuestion[] = [
     "optionC": "Dodirivanje lica",
     "optionD": "Dijeljenje ručnika",
     "correctAnswer": "Pranje ruku sapunom"
+  },
+  // Teška pitanja dodana su naknadno, nakon što je popravljen upis težine u
+  // bazu: dio kategorija imao je nula ili jedno teško pitanje, pa je odabir
+  // težine "Teško" uz takvu kategoriju vraćao praznu partiju. Sada svaka
+  // kategorija ima najmanje šest teških pitanja, pa je svaka kombinacija
+  // kategorije i težine igriva.
+  {
+    "category": "Geografija",
+    "difficulty": "hard",
+    "question": "Koje je jezero najdublje na svijetu?",
+    "optionA": "Bajkalsko jezero",
+    "optionB": "Kaspijsko jezero",
+    "optionC": "Tanganjika",
+    "optionD": "Veliko slano jezero",
+    "correctAnswer": "Bajkalsko jezero"
+  },
+  {
+    "category": "Geografija",
+    "difficulty": "hard",
+    "question": "Koja država obuhvaća najviše vremenskih zona?",
+    "optionA": "Rusija",
+    "optionB": "Francuska",
+    "optionC": "Kina",
+    "optionD": "Kanada",
+    "correctAnswer": "Francuska"
+  },
+  {
+    "category": "Geografija",
+    "difficulty": "hard",
+    "question": "Koja je najveća država svijeta bez izlaza na more?",
+    "optionA": "Mongolija",
+    "optionB": "Kazahstan",
+    "optionC": "Čad",
+    "optionD": "Bolivija",
+    "correctAnswer": "Kazahstan"
+  },
+  {
+    "category": "Geografija",
+    "difficulty": "hard",
+    "question": "Koji je najjužniji glavni grad neke suverene države?",
+    "optionA": "Canberra",
+    "optionB": "Santiago",
+    "optionC": "Wellington",
+    "optionD": "Buenos Aires",
+    "correctAnswer": "Wellington"
+  },
+  {
+    "category": "Geografija",
+    "difficulty": "hard",
+    "question": "Kroz koliko država protječe rijeka Dunav?",
+    "optionA": "Deset",
+    "optionB": "Šest",
+    "optionC": "Četiri",
+    "optionD": "Trinaest",
+    "correctAnswer": "Deset"
+  },
+  {
+    "category": "Glazba",
+    "difficulty": "hard",
+    "question": "Koliko je simfonija skladao Ludwig van Beethoven?",
+    "optionA": "Devet",
+    "optionB": "Sedam",
+    "optionC": "Dvanaest",
+    "optionD": "Četrdeset jednu",
+    "correctAnswer": "Devet"
+  },
+  {
+    "category": "Glazba",
+    "difficulty": "hard",
+    "question": "Kako se naziva predznak koji ton povisuje za polustepen?",
+    "optionA": "Snizilica",
+    "optionB": "Povisilica",
+    "optionC": "Razrješilica",
+    "optionD": "Korona",
+    "correctAnswer": "Povisilica"
+  },
+  {
+    "category": "Glazba",
+    "difficulty": "hard",
+    "question": "Koje je godine izdan album The Dark Side of the Moon?",
+    "optionA": "1973.",
+    "optionB": "1969.",
+    "optionC": "1977.",
+    "optionD": "1980.",
+    "correctAnswer": "1973."
+  },
+  {
+    "category": "Glazba",
+    "difficulty": "hard",
+    "question": "Tko je skladao operu Nikola Šubić Zrinski?",
+    "optionA": "Jakov Gotovac",
+    "optionB": "Vatroslav Lisinski",
+    "optionC": "Ivan Zajc",
+    "optionD": "Blagoje Bersa",
+    "correctAnswer": "Ivan Zajc"
+  },
+  {
+    "category": "Književnost",
+    "difficulty": "hard",
+    "question": "Koje je pravo ime pisca koji je objavljivao kao George Orwell?",
+    "optionA": "Eric Arthur Blair",
+    "optionB": "Charles Dodgson",
+    "optionC": "Samuel Clemens",
+    "optionD": "Mary Ann Evans",
+    "correctAnswer": "Eric Arthur Blair"
+  },
+  {
+    "category": "Književnost",
+    "difficulty": "hard",
+    "question": "Tko je autor zbirke Balade Petrice Kerempuha?",
+    "optionA": "Antun Gustav Matoš",
+    "optionB": "Miroslav Krleža",
+    "optionC": "Tin Ujević",
+    "optionD": "August Šenoa",
+    "correctAnswer": "Miroslav Krleža"
+  },
+  {
+    "category": "Književnost",
+    "difficulty": "hard",
+    "question": "Koje se djelo smatra prvim hrvatskim romanom?",
+    "optionA": "Zlatarovo zlato",
+    "optionB": "Judita",
+    "optionC": "Planine",
+    "optionD": "Smrt Smail-age Čengića",
+    "correctAnswer": "Planine"
+  },
+  {
+    "category": "Ljudsko tijelo i zdravlje",
+    "difficulty": "hard",
+    "question": "Koji je najduži živac u ljudskom tijelu?",
+    "optionA": "Vidni živac",
+    "optionB": "Išijadični živac",
+    "optionC": "Lutajući živac",
+    "optionD": "Facijalni živac",
+    "correctAnswer": "Išijadični živac"
+  },
+  {
+    "category": "Poslovanje i brendovi",
+    "difficulty": "hard",
+    "question": "Koja je tvrtka prva dosegla tržišnu vrijednost od bilijun dolara?",
+    "optionA": "Microsoft",
+    "optionB": "Amazon",
+    "optionC": "Apple",
+    "optionD": "Saudi Aramco",
+    "correctAnswer": "Apple"
+  },
+  {
+    "category": "Poslovanje i brendovi",
+    "difficulty": "hard",
+    "question": "Koje je godine osnovana tvrtka Coca-Cola?",
+    "optionA": "1886.",
+    "optionB": "1902.",
+    "optionC": "1875.",
+    "optionD": "1920.",
+    "correctAnswer": "1886."
+  },
+  {
+    "category": "Poslovanje i brendovi",
+    "difficulty": "hard",
+    "question": "Kako se zove krovna tvrtka koja od 2015. upravlja Googleom?",
+    "optionA": "Meta",
+    "optionB": "Alphabet",
+    "optionC": "Alveo",
+    "optionD": "Omega Group",
+    "correctAnswer": "Alphabet"
+  },
+  {
+    "category": "Poslovanje i brendovi",
+    "difficulty": "hard",
+    "question": "Što u poslovnom svijetu označava kratica IPO?",
+    "optionA": "Inicijalna javna ponuda dionica",
+    "optionB": "Interna poslovna optimizacija",
+    "optionC": "Indeks proizvodnih obveznica",
+    "optionD": "Investicijski portfeljni obračun",
+    "correctAnswer": "Inicijalna javna ponuda dionica"
+  },
+  {
+    "category": "Povijest",
+    "difficulty": "hard",
+    "question": "Koje je godine potpisan Vestfalski mir?",
+    "optionA": "1648.",
+    "optionB": "1555.",
+    "optionC": "1701.",
+    "optionD": "1815.",
+    "correctAnswer": "1648."
+  },
+  {
+    "category": "Povijest",
+    "difficulty": "hard",
+    "question": "Koje je godine Dmitar Zvonimir okrunjen za hrvatskog kralja?",
+    "optionA": "925.",
+    "optionB": "1075.",
+    "optionC": "1102.",
+    "optionD": "1000.",
+    "correctAnswer": "1075."
+  },
+  {
+    "category": "Povijest",
+    "difficulty": "hard",
+    "question": "Koliko je godina zapravo trajao Stogodišnji rat?",
+    "optionA": "116",
+    "optionB": "100",
+    "optionC": "87",
+    "optionD": "130",
+    "correctAnswer": "116"
+  },
+  {
+    "category": "Povijest",
+    "difficulty": "hard",
+    "question": "Koje je godine izdan Milanski edikt?",
+    "optionA": "313.",
+    "optionB": "380.",
+    "optionC": "476.",
+    "optionD": "285.",
+    "correctAnswer": "313."
+  },
+  {
+    "category": "Računarstvo",
+    "difficulty": "hard",
+    "question": "Kolika je vremenska složenost binarnog pretraživanja?",
+    "optionA": "O(log n)",
+    "optionB": "O(n)",
+    "optionC": "O(n log n)",
+    "optionD": "O(n²)",
+    "correctAnswer": "O(log n)"
+  },
+  {
+    "category": "Računarstvo",
+    "difficulty": "hard",
+    "question": "Koji je sloj OSI modela zadužen za usmjeravanje paketa?",
+    "optionA": "Transportni sloj",
+    "optionB": "Mrežni sloj",
+    "optionC": "Sloj podatkovne veze",
+    "optionD": "Sesijski sloj",
+    "correctAnswer": "Mrežni sloj"
+  },
+  {
+    "category": "Računarstvo",
+    "difficulty": "hard",
+    "question": "Tko se smatra autorom prvog računalnog algoritma?",
+    "optionA": "Alan Turing",
+    "optionB": "Grace Hopper",
+    "optionC": "Ada Lovelace",
+    "optionD": "Charles Babbage",
+    "correctAnswer": "Ada Lovelace"
+  },
+  {
+    "category": "Računarstvo",
+    "difficulty": "hard",
+    "question": "Koliko bitova ima IPv6 adresa?",
+    "optionA": "128",
+    "optionB": "32",
+    "optionC": "64",
+    "optionD": "256",
+    "correctAnswer": "128"
+  },
+  {
+    "category": "Računarstvo",
+    "difficulty": "hard",
+    "question": "Koja struktura podataka radi po načelu zadnji unutra, prvi van?",
+    "optionA": "Red",
+    "optionB": "Stog",
+    "optionC": "Vezana lista",
+    "optionD": "Binarno stablo",
+    "correctAnswer": "Stog"
+  },
+  {
+    "category": "Sport",
+    "difficulty": "hard",
+    "question": "Koliko je puta Hrvatska osvojila srebro na Svjetskom nogometnom prvenstvu?",
+    "optionA": "Jednom",
+    "optionB": "Dvaput",
+    "optionC": "Nijednom",
+    "optionD": "Triput",
+    "correctAnswer": "Jednom"
+  },
+  {
+    "category": "Sport",
+    "difficulty": "hard",
+    "question": "Koliko igrača jedne momčadi istodobno igra u vaterpolu?",
+    "optionA": "Sedam",
+    "optionB": "Šest",
+    "optionC": "Pet",
+    "optionD": "Osam",
+    "correctAnswer": "Sedam"
+  },
+  {
+    "category": "Sport",
+    "difficulty": "hard",
+    "question": "Koji tenisač drži rekord po broju osvojenih Grand Slam naslova u muškoj konkurenciji?",
+    "optionA": "Rafael Nadal",
+    "optionB": "Roger Federer",
+    "optionC": "Novak Đoković",
+    "optionD": "Pete Sampras",
+    "correctAnswer": "Novak Đoković"
+  },
+  {
+    "category": "Sport",
+    "difficulty": "hard",
+    "question": "Koliko iznosi najveći mogući rezultat jedne igre u kuglanju?",
+    "optionA": "300",
+    "optionB": "200",
+    "optionC": "250",
+    "optionD": "360",
+    "correctAnswer": "300"
+  },
+  {
+    "category": "Trendovi i aktualnosti",
+    "difficulty": "hard",
+    "question": "Što označava pojam deepfake?",
+    "optionA": "Sintetički sadržaj generiran umjetnom inteligencijom",
+    "optionB": "Lažni korisnički račun",
+    "optionC": "Šifrirana poruka",
+    "optionD": "Zastarjela objava",
+    "correctAnswer": "Sintetički sadržaj generiran umjetnom inteligencijom"
+  },
+  {
+    "category": "Trendovi i aktualnosti",
+    "difficulty": "hard",
+    "question": "Što znači kratica NFT?",
+    "optionA": "Nezamjenjivi token",
+    "optionB": "Novi financijski transfer",
+    "optionC": "Mrežni datotečni transfer",
+    "optionD": "Nacionalni fond tehnologije",
+    "correctAnswer": "Nezamjenjivi token"
+  },
+  {
+    "category": "Trendovi i aktualnosti",
+    "difficulty": "hard",
+    "question": "Kako se naziva pojava u kojoj algoritam korisniku prikazuje samo sadržaj koji potvrđuje njegova uvjerenja?",
+    "optionA": "Digitalni otisak",
+    "optionB": "Mjehur filtriranja",
+    "optionC": "Virusni sadržaj",
+    "optionD": "Mrežna neutralnost",
+    "correctAnswer": "Mjehur filtriranja"
+  },
+  {
+    "category": "Trendovi i aktualnosti",
+    "difficulty": "hard",
+    "question": "Što označava pojam greenwashing?",
+    "optionA": "Lažno predstavljanje poslovanja ekološki prihvatljivim",
+    "optionB": "Recikliranje elektroničkog otpada",
+    "optionC": "Ulaganje u obnovljive izvore",
+    "optionD": "Uređivanje zelenih gradskih površina",
+    "correctAnswer": "Lažno predstavljanje poslovanja ekološki prihvatljivim"
+  },
+  {
+    "category": "Trendovi i aktualnosti",
+    "difficulty": "hard",
+    "question": "Kako se naziva vrsta modela umjetne inteligencije koja generira tekst na temelju upita?",
+    "optionA": "Veliki jezični model",
+    "optionB": "Konvolucijska mreža",
+    "optionC": "Ekspertni sustav",
+    "optionD": "Genetski algoritam",
+    "correctAnswer": "Veliki jezični model"
+  },
+  {
+    "category": "Umjetnost",
+    "difficulty": "hard",
+    "question": "Kojem umjetničkom pravcu pripada Salvador Dalí?",
+    "optionA": "Kubizam",
+    "optionB": "Nadrealizam",
+    "optionC": "Impresionizam",
+    "optionD": "Ekspresionizam",
+    "correctAnswer": "Nadrealizam"
+  },
+  {
+    "category": "Umjetnost",
+    "difficulty": "hard",
+    "question": "Tko je autor mramorne skulpture David dovršene 1504. godine?",
+    "optionA": "Donatello",
+    "optionB": "Michelangelo",
+    "optionC": "Gian Lorenzo Bernini",
+    "optionD": "Auguste Rodin",
+    "correctAnswer": "Michelangelo"
+  },
+  {
+    "category": "Umjetnost",
+    "difficulty": "hard",
+    "question": "Koji je hrvatski kipar izradio skulpturu Grgura Ninskog u Splitu?",
+    "optionA": "Antun Augustinčić",
+    "optionB": "Ivan Meštrović",
+    "optionC": "Frano Kršinić",
+    "optionD": "Vanja Radauš",
+    "correctAnswer": "Ivan Meštrović"
+  },
+  {
+    "category": "Videoigre",
+    "difficulty": "hard",
+    "question": "Koja je tvrtka prije videoigara proizvodila igraće karte?",
+    "optionA": "Sega",
+    "optionB": "Nintendo",
+    "optionC": "Atari",
+    "optionD": "Sony",
+    "correctAnswer": "Nintendo"
+  },
+  {
+    "category": "Videoigre",
+    "difficulty": "hard",
+    "question": "Koje je godine izašla prva igra serijala The Legend of Zelda?",
+    "optionA": "1986.",
+    "optionB": "1991.",
+    "optionC": "1983.",
+    "optionD": "1990.",
+    "correctAnswer": "1986."
+  },
+  {
+    "category": "Videoigre",
+    "difficulty": "hard",
+    "question": "Koja je najprodavanija videoigra svih vremena?",
+    "optionA": "Tetris",
+    "optionB": "Minecraft",
+    "optionC": "Grand Theft Auto V",
+    "optionD": "Wii Sports",
+    "correctAnswer": "Minecraft"
+  },
+  {
+    "category": "Videoigre",
+    "difficulty": "hard",
+    "question": "Kako se zove glavni lik serijala Metal Gear Solid?",
+    "optionA": "Master Chief",
+    "optionB": "Solid Snake",
+    "optionC": "Gordon Freeman",
+    "optionD": "Sam Fisher",
+    "correctAnswer": "Solid Snake"
+  },
+  {
+    "category": "Videoigre",
+    "difficulty": "hard",
+    "question": "Koji je programski pogon za igre razvila tvrtka Epic Games?",
+    "optionA": "Unity",
+    "optionB": "Unreal Engine",
+    "optionC": "CryEngine",
+    "optionD": "Godot",
+    "correctAnswer": "Unreal Engine"
+  },
+  {
+    "category": "Znanost",
+    "difficulty": "hard",
+    "question": "Koja je kemijska oznaka volframa?",
+    "optionA": "V",
+    "optionB": "W",
+    "optionC": "Vo",
+    "optionD": "Tu",
+    "correctAnswer": "W"
+  },
+  {
+    "category": "Znanost",
+    "difficulty": "hard",
+    "question": "Koja čestica prenosi elektromagnetsku silu?",
+    "optionA": "Gluon",
+    "optionB": "Foton",
+    "optionC": "Neutrino",
+    "optionD": "Higgsov bozon",
+    "correctAnswer": "Foton"
+  },
+  {
+    "category": "Znanost",
+    "difficulty": "hard",
+    "question": "Koje je godine Albert Einstein objavio opću teoriju relativnosti?",
+    "optionA": "1915.",
+    "optionB": "1905.",
+    "optionC": "1927.",
+    "optionD": "1935.",
+    "correctAnswer": "1915."
+  },
+  {
+    "category": "Znanost",
+    "difficulty": "hard",
+    "question": "Koji je element najzastupljeniji u Zemljinoj kori?",
+    "optionA": "Silicij",
+    "optionB": "Kisik",
+    "optionC": "Željezo",
+    "optionD": "Aluminij",
+    "correctAnswer": "Kisik"
+  },
+  {
+    "category": "Životinje",
+    "difficulty": "hard",
+    "question": "Koliko srca ima hobotnica?",
+    "optionA": "Jedno",
+    "optionB": "Dva",
+    "optionC": "Tri",
+    "optionD": "Četiri",
+    "correctAnswer": "Tri"
+  },
+  {
+    "category": "Životinje",
+    "difficulty": "hard",
+    "question": "Koji je vodozemac poznat po sposobnosti regeneracije izgubljenih udova?",
+    "optionA": "Kameleon",
+    "optionB": "Aksolotl",
+    "optionC": "Dikobraz",
+    "optionD": "Vidra",
+    "correctAnswer": "Aksolotl"
+  },
+  {
+    "category": "Životinje",
+    "difficulty": "hard",
+    "question": "Koja je životinja najbrža na svijetu?",
+    "optionA": "Gepard",
+    "optionB": "Sivi sokol",
+    "optionC": "Antilopa vilorog",
+    "optionD": "Crnorepi zec",
+    "correctAnswer": "Sivi sokol"
+  },
+  {
+    "category": "Životinje",
+    "difficulty": "hard",
+    "question": "Koliko vratnih kralježaka ima žirafa?",
+    "optionA": "Sedam",
+    "optionB": "Četrnaest",
+    "optionC": "Dvadeset",
+    "optionD": "Dvanaest",
+    "correctAnswer": "Sedam"
+  },
+  {
+    "category": "Životinje",
+    "difficulty": "hard",
+    "question": "Koja skupina životinja ima otvoreni krvožilni sustav?",
+    "optionA": "Kukci",
+    "optionB": "Sisavci",
+    "optionC": "Ptice",
+    "optionD": "Ribe",
+    "correctAnswer": "Kukci"
   }
 ];
 
-const questions = questionsWithDifficulty.map(({ difficulty, ...question }) => question);
+const questions = questionsWithDifficulty;
 
 async function main() {
   await prisma.question.deleteMany({

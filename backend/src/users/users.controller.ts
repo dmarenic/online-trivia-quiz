@@ -18,7 +18,6 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import {
   AddFriendDto,
-  InviteRoomDto,
   UpdateAvatarDto,
   UpdateUsernameDto,
 } from './dto/users.dto';
@@ -181,75 +180,10 @@ export class UsersController {
     }
   }
 
-  @UseGuards(JwtAuthGuard)
-  @Post('invite-room')
-  async inviteToRoom(
-    @CurrentUser() user: AuthenticatedUser,
-    @Body() body: InviteRoomDto,
-  ) {
-    if (body.toUserId === user.id) {
-      throw new ForbiddenException('Ne možeš poslati pozivnicu sam sebi.');
-    }
-
-    const receiver = await this.prisma.user.findUnique({
-      where: {
-        id: body.toUserId,
-      },
-    });
-
-    if (!receiver) {
-      throw new NotFoundException(
-        'Korisnik kojem šalješ pozivnicu ne postoji.',
-      );
-    }
-
-    // Isto pravilo kao u socket verziji (send_room_invite u game.gateway.ts):
-    // poslan, ali još neprihvaćen zahtjev NE daje pravo slanja pozivnice.
-    const friendship = await this.prisma.friend.findFirst({
-      where: {
-        status: 'accepted',
-        OR: [
-          {
-            senderId: user.id,
-            receiverId: body.toUserId,
-          },
-          {
-            senderId: body.toUserId,
-            receiverId: user.id,
-          },
-        ],
-      },
-    });
-
-    if (!friendship) {
-      throw new ForbiddenException('Pozivnicu možeš poslati samo prijatelju.');
-    }
-
-    await this.prisma.roomInvite.deleteMany({
-      where: {
-        OR: [
-          {
-            fromUserId: user.id,
-            toUserId: body.toUserId,
-            roomCode: body.roomCode,
-          },
-          {
-            createdAt: {
-              lt: new Date(Date.now() - ROOM_INVITE_TTL_MS),
-            },
-          },
-        ],
-      },
-    });
-
-    return this.prisma.roomInvite.create({
-      data: {
-        fromUserId: user.id,
-        toUserId: body.toUserId,
-        roomCode: body.roomCode,
-      },
-    });
-  }
+  // Pozivnice se šalju isključivo socket događajem `send_room_invite`
+  // (game.gateway.ts), jer samo gateway pozivnicu može odmah gurnuti primatelju
+  // na njegov osobni kanal. Rute ispod pokrivaju ostatak životnog ciklusa —
+  // dohvat i odbijanje — jer se oni ne moraju dogoditi u stvarnom vremenu.
 
   @UseGuards(JwtAuthGuard)
   @Delete('room-invites/:inviteId')

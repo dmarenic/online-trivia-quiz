@@ -1,5 +1,6 @@
 # Environment
-.env
+.env*
+!.env.example
 
 # Node
 node_modules/
@@ -7,6 +8,7 @@ node_modules/
 # Build
 dist/
 .next/
+*.tsbuildinfo
 
 # Logs
 *.log
@@ -16,11 +18,21 @@ lint-output.txt
 .DS_Store
 Thumbs.db
 
-ANALIZA_ZAVRSNOG.md
-ANALIZA.md
+# IDE
+.vscode/
+.idea/
+
+# AI asistenti
 CLAUDE.md
+AGENTS.md
 .claude/
+
+# Radni materijali završnog rada 
+ANALIZA.md
+ANALIZA_ZAVRSNOG.md
 DOKUMENTACIJA_PRIJEDLOG.md
-SOCKET_PROTOCOL.md
-Zavrsni_rad_Online_Trivia_Kviz_ISPRAVLJENO.pdf
+_provjera/
+analiza/
+*.docx
+*.pdf
 
