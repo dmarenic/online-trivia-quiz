@@ -22,11 +22,6 @@ Thumbs.db
 .vscode/
 .idea/
 
-# AI asistenti
-CLAUDE.md
-AGENTS.md
-.claude/
-
 # Radni materijali završnog rada 
 ANALIZA.md
 ANALIZA_ZAVRSNOG.md
