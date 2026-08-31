@@ -22,12 +22,5 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Radni materijali završnog rada 
-ANALIZA.md
-ANALIZA_ZAVRSNOG.md
-DOKUMENTACIJA_PRIJEDLOG.md
-_provjera/
-analiza/
-*.docx
-*.pdf
+
 
